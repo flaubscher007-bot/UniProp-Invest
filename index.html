@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kampus — University Property Portfolio</title>
+<meta name="description" content="Track, shortlist and manage 2-bedroom investment properties near South African university campuses.">
+<meta name="theme-color" content="#14231d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kampus">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Optional: real PDF export when available; app falls back to print-to-PDF if these don't load -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{
+  --ink:#132420; --ink2:#1c332c; --paper:#e9ede8; --card:#ffffff; --card2:#f5f8f3;
+  --emerald:#1d6b4f; --emerald-d:#134c38; --emerald-bg:#e5f0ea;
+  --brass:#b58f43; --brass-d:#8f6f2e; --brass-bg:#f6efdd;
+  --clay:#a94b3d; --clay-bg:#f7e9e6; --amber:#b07d24; --amber-bg:#fbf3e0;
+  --slate:#586460; --mut:#8a938d; --line:#d7ded6; --slate-bg:#eceff0;
+  --good:#1d6b4f; --good-bg:#e5f0ea; --warn:#b07d24; --warn-bg:#fbf3e0; --bad:#a94b3d; --bad-bg:#f7e9e6;
+  --shadow:0 1px 2px rgba(15,30,25,.05),0 6px 20px rgba(15,30,25,.06);
+  --shadow-lg:0 10px 40px rgba(15,30,25,.14);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--paper);color:var(--ink);
+  -webkit-font-smoothing:antialiased;font-size:15px;line-height:1.5}
+h1,h2,h3,h4{margin:0;line-height:1.12}
+.serif{font-family:'Fraunces',Georgia,serif}
+button{font-family:inherit;cursor:pointer}
+a{color:var(--emerald-d)}
+input,select,textarea{font-family:inherit;font-size:14px}
+.ico{width:1em;height:1em;display:inline-block;vertical-align:-.13em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* header */
+header{background:linear-gradient(120deg,#0f231e,#1c3a2f 70%);color:#eef2ee;padding:14px 16px;position:relative;z-index:40}
+.brandrow{display:flex;align-items:center;gap:11px;max-width:1160px;margin:0 auto}
+.mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--brass),#d8b869);
+  display:grid;place-items:center;font-family:'Fraunces';font-weight:700;color:#20180a;font-size:20px;flex:none;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.brand h1{font-family:'Fraunces';font-size:22px;letter-spacing:.2px;font-weight:600}
+.brand p{margin:1px 0 0;font-size:11.5px;color:#a9bcb1;letter-spacing:.3px}
+.hstats{margin-left:auto;display:flex;gap:20px;text-align:right}
+.hstat b{display:block;font-family:'Fraunces';font-size:18px;font-weight:600}
+.hstat span{font-size:10.5px;color:#a9bcb1}
+@media(max-width:640px){.hstats{gap:14px}.hstat.opt{display:none}.brand h1{font-size:19px}}
+
+/* tabs */
+nav{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:30;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+.tabs{display:flex;gap:1px;overflow-x:auto;max-width:1160px;margin:0 auto;padding:0 8px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:none;background:none;padding:13px 12px 11px;font-size:13.5px;font-weight:600;color:var(--slate);
+  white-space:nowrap;border-bottom:2.5px solid transparent;display:flex;gap:6px;align-items:center}
+.tab .ico{width:15px;height:15px}
+.tab .cnt{background:var(--slate-bg);color:var(--slate);border-radius:20px;font-size:11px;padding:1px 7px;font-weight:700}
+.tab.active{color:var(--emerald-d);border-color:var(--brass)}
+.tab.active .cnt{background:var(--emerald-bg);color:var(--emerald-d)}
+
+main{max-width:1160px;margin:0 auto;padding:16px 14px 70px}
+
+/* hero */
+.hero{position:relative;border-radius:18px;overflow:hidden;margin-bottom:16px;box-shadow:var(--shadow);min-height:186px;display:flex;align-items:flex-end}
+.hero svg.herobg{position:absolute;inset:0;width:100%;height:100%}
+.heroinner{position:relative;padding:18px 20px;color:#f3f1e8;z-index:2}
+.eyebrow{font-size:12px;letter-spacing:.4px;color:#e6cf97;margin-bottom:4px}
+.herotitle{font-family:'Fraunces';font-size:34px;font-weight:600;letter-spacing:.3px;text-shadow:0 2px 14px rgba(0,0,0,.35)}
+.herometa{font-size:12.5px;color:#d8ddd4;margin-top:6px;display:flex;align-items:center;gap:6px;max-width:640px}
+@media(max-width:640px){.herotitle{font-size:27px}.hero{min-height:158px}}
+
+/* notices + toolbars */
+.notice{background:var(--brass-bg);border:1px solid #e6d3a3;border-radius:14px;padding:12px 15px;font-size:13px;color:#6b531b;margin-bottom:14px}
+.notice b{color:#523f12}
+.toolbar{display:flex;align-items:center;gap:10px;margin:2px 0 12px;flex-wrap:wrap}
+.toolbar .sub{color:var(--slate);font-size:13px}
+.spacer{flex:1}
+.sectionhead{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin:2px 0 14px}
+.sectionhead h2{font-family:'Fraunces';font-size:24px;font-weight:600;letter-spacing:.2px}
+.sectionhead .sub{color:var(--slate);font-size:13px}
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:22px;padding:7px 13px;font-size:12.5px;color:var(--slate);font-weight:600}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* export dropdown */
+details.exp{position:relative}
+details.exp summary{list-style:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);
+  background:var(--card);border-radius:10px;padding:8px 13px;font-size:13px;font-weight:600;color:var(--ink)}
+details.exp summary::-webkit-details-marker{display:none}
+details.exp[open] summary{border-color:var(--brass);color:var(--brass-d)}
+.expmenu{position:absolute;right:0;top:calc(100% + 6px);background:var(--card);border:1px solid var(--line);
+  border-radius:12px;box-shadow:var(--shadow-lg);padding:6px;min-width:170px;z-index:20}
+.expmenu button{display:flex;width:100%;align-items:center;gap:9px;border:none;background:none;padding:9px 11px;
+  border-radius:8px;font-size:13.5px;font-weight:500;color:var(--ink);text-align:left}
+.expmenu button:hover{background:var(--card2)}
+.expmenu .k{margin-left:auto;font-size:11px;color:var(--mut)}
+
+/* listing cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:14px}
+.lcard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;transition:box-shadow .2s,transform .2s}
+.lcard.shortlisted{border-color:var(--brass);box-shadow:0 0 0 1px var(--brass),var(--shadow)}
+.cover{position:relative;aspect-ratio:16/9;background:#12241d;overflow:hidden}
+.coversvg,.coverimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.coverprice{position:absolute;left:12px;bottom:12px;background:rgba(15,30,25,.72);backdrop-filter:blur(3px);
+  color:#fff;font-family:'Fraunces';font-weight:600;font-size:19px;padding:5px 12px;border-radius:10px;letter-spacing:.3px}
+.covertag{position:absolute;right:12px;top:12px;background:var(--brass);color:#241a08;font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px}
+.covercam{position:absolute;right:10px;bottom:10px;width:32px;height:32px;border-radius:9px;border:none;
+  background:rgba(255,255,255,.9);color:var(--ink);display:grid;place-items:center;font-size:15px}
+.lbody{padding:13px 14px 14px;display:flex;flex-direction:column;gap:9px}
+.ltitle{font-family:'Fraunces';font-size:16px;font-weight:600;line-height:1.2}
+.lsub{font-size:12.5px;color:var(--slate);display:flex;align-items:center;gap:5px}
+.lsub .ico{color:var(--brass-d);width:14px;height:14px}
+.badges{display:flex;flex-wrap:wrap;gap:5px}
+.badge{font-size:11px;font-weight:600;border-radius:7px;padding:3px 8px;white-space:nowrap}
+.b-cheap{background:var(--emerald-bg);color:var(--emerald-d)}
+.b-sim{background:var(--slate-bg);color:var(--slate)}
+.b-exp{background:var(--clay-bg);color:var(--clay)}
+.b-over{background:var(--brass-bg);color:var(--brass-d)}
+.b-q{background:#eee;color:#777}
+.b-garden{background:#e7f0e6;color:#3a6b39}
+.b-focus{background:var(--brass);color:#241a08}
+.focuspanel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0 13px;margin-bottom:12px;box-shadow:var(--shadow)}
+.focuspanel summary{list-style:none;cursor:pointer;padding:12px 0;font-weight:600;font-size:13.5px;color:var(--ink);display:flex;align-items:center;gap:7px}
+.focuspanel summary::-webkit-details-marker{display:none}
+.focuspanel summary .ico{color:var(--brass-d)}
+.focusbody{padding:0 0 14px}
+.prefpills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.prefpill{display:inline-flex;align-items:center;gap:7px;background:var(--brass-bg);color:var(--brass-d);border-radius:20px;padding:5px 6px 5px 12px;font-size:12.5px;font-weight:600}
+.prefpill button{border:none;background:rgba(0,0,0,.09);color:var(--brass-d);width:19px;height:19px;border-radius:50%;font-size:13px;line-height:1;cursor:pointer;display:grid;place-items:center}
+.chip.focuschip{border-color:var(--brass)}
+.chip.focuschip.on{background:var(--brass);color:#241a08;border-color:var(--brass)}
+.score-good{background:var(--emerald-bg);color:var(--emerald-d)}
+.score-warn{background:var(--warn-bg);color:var(--warn)}
+.score-bad{background:var(--slate-bg);color:var(--slate)}
+.sortsel{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:600;color:var(--ink)}
+.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+@media(max-width:560px){.statgrid{grid-template-columns:repeat(2,1fr)}}
+.statcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+.statv{font-family:'Fraunces';font-size:23px;font-weight:700;letter-spacing:-.3px}
+.statl{font-size:11.5px;color:var(--slate);margin-top:2px}
+.qactions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+.minilist{display:flex;flex-direction:column;gap:8px}
+.minirow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px;box-shadow:var(--shadow)}
+.mini-l{display:flex;flex-direction:column}
+.mini-l b{font-family:'Fraunces';font-size:15px}
+.mini-l span{font-size:12px;color:var(--slate)}
+.specs{display:flex;gap:14px;font-size:12.5px;color:var(--slate);flex-wrap:wrap;align-items:center}
+.specs span{display:inline-flex;align-items:center;gap:5px}
+.specs .ico{width:15px;height:15px;color:var(--brass-d)}
+.specs b{color:var(--ink);font-weight:600}
+.cash{background:var(--card2);border:1px solid var(--line);border-radius:11px;padding:9px 11px;font-size:12px}
+.cash .row{display:flex;justify-content:space-between;gap:8px}
+.cash .net{font-weight:700;font-family:'Fraunces'}
+.pos{color:var(--emerald-d)} .neg{color:var(--clay)}
+.arearow{display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--card);
+  border-radius:20px;padding:6px 10px;font-size:11.5px;font-weight:600;color:var(--slate)}
+.pill .ico{width:13px;height:13px}
+.pill.p-good{background:var(--good-bg);border-color:transparent;color:var(--good)}
+.pill.p-warn{background:var(--warn-bg);border-color:transparent;color:var(--warn)}
+.pill.p-bad{background:var(--bad-bg);border-color:transparent;color:var(--bad)}
+.anote{font-size:12px;color:var(--ink);background:#fbfaf5;border:1px dashed var(--line);border-radius:9px;padding:7px 9px;white-space:pre-wrap}
+.lactions{display:flex;gap:6px;flex-wrap:wrap}
+.act{border:1px solid var(--line);background:var(--card);border-radius:9px;padding:8px 11px;font-size:12.5px;font-weight:600;
+  color:var(--ink);display:inline-flex;gap:5px;align-items:center;text-decoration:none}
+.act .ico{width:14px;height:14px}
+.act.p{background:var(--emerald);border-color:var(--emerald);color:#fff}
+.act.wa{background:#1f7a34;border-color:#1f7a34;color:#fff}
+.act.on{background:var(--brass-bg);border-color:var(--brass);color:var(--brass-d)}
+.act.photos{background:var(--ink);border-color:var(--ink);color:#fff}
+.agentblock{border-top:1px dashed var(--line);padding-top:10px;margin-top:1px}
+.agenthd{font-size:11.5px;font-weight:700;color:var(--slate);display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.agenthd .ico{color:var(--brass-d);width:14px;height:14px}
+.visit{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.visit button{border:none;background:var(--card);padding:8px 10px;font-size:12px;font-weight:600;color:var(--slate);border-right:1px solid var(--line)}
+.visit button:last-child{border-right:none}
+.visit button.yes.on{background:var(--emerald);color:#fff}
+.visit button.maybe.on{background:var(--amber);color:#fff}
+.visit button.no.on{background:var(--clay);color:#fff}
+
+/* panels / forms */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:17px;box-shadow:var(--shadow);margin-bottom:14px}
+.panel h3{font-family:'Fraunces';font-size:17px;font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+.panel h3 .ico{color:var(--brass-d)}
+.panel .desc{color:var(--slate);font-size:12.5px;margin-bottom:13px}
+label{display:block;font-size:11.5px;font-weight:600;color:var(--slate);margin:0 0 4px}
+.field{margin-bottom:11px}
+input[type=text],input[type=number],input[type=date],input[type=month],select,textarea{
+  width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--emerald);outline-offset:-1px;border-color:var(--emerald)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.frow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media(max-width:520px){.frow3{grid-template-columns:1fr 1fr}}
+.btn{background:var(--emerald);color:#fff;border:none;border-radius:10px;padding:11px 16px;font-weight:600;font-size:14px;display:inline-flex;gap:7px;align-items:center}
+.btn.ghost{background:none;color:var(--emerald-d);border:1px solid var(--line)}
+.btn.brass{background:var(--brass);color:#241a08}
+.btn.mini{padding:7px 12px;font-size:12.5px}
+.btn.danger{background:none;color:var(--clay);border:1px solid var(--clay-bg)}
+
+.led{width:100%;border-collapse:collapse;font-size:13px}
+.led th{text-align:left;font-size:11px;color:var(--mut);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+.led td{padding:8px;border-bottom:1px solid var(--line)}
+.led tr:last-child td{border-bottom:none}
+.led .num{text-align:right;font-variant-numeric:tabular-nums}
+.led .del{color:var(--clay);cursor:pointer;font-weight:700;border:none;background:none;font-size:15px;line-height:1}
+.kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.kv:last-child{border-bottom:none}
+.big{font-family:'Fraunces';font-size:26px;font-weight:700;letter-spacing:-.3px}
+.empty{text-align:center;color:var(--mut);padding:46px 16px;font-size:14px}
+.empty .ic{font-size:30px;display:block;margin-bottom:8px;opacity:.5}
+.empty .ico{width:34px;height:34px;color:var(--brass);opacity:.6;margin-bottom:8px}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:7px;background:var(--slate-bg);color:var(--slate);font-weight:600}
+.ownedhead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.sub-tabs{display:flex;gap:5px;margin:12px 0;flex-wrap:wrap}
+.sub-tabs button{border:1px solid var(--line);background:var(--card2);border-radius:9px;padding:7px 12px;font-size:12.5px;font-weight:600;color:var(--slate)}
+.sub-tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.hint{font-size:12px;color:var(--mut);margin-top:5px}
+.checklist label{display:flex;gap:8px;align-items:flex-start;font-weight:500;color:var(--ink);font-size:13px;margin-bottom:8px;cursor:pointer}
+.checklist input{width:auto;margin-top:2px}
+.cmpwrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:var(--shadow)}
+.cmp{border-collapse:collapse;font-size:12.5px;min-width:100%}
+.cmp th,.cmp td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;vertical-align:top}
+.cmp thead th{background:var(--card2);position:sticky;top:0}
+.cmp td.lab,.cmp thead th.lab{position:sticky;left:0;background:var(--card2);font-weight:600;color:var(--slate);z-index:1;white-space:normal;min-width:120px}
+.cmp td.best{background:var(--emerald-bg);color:var(--emerald-d);font-weight:700}
+.cmp .colprice{font-family:'Fraunces';font-weight:700;font-size:15px}
+.foot{max-width:1160px;margin:22px auto 0;padding:0 14px;color:var(--mut);font-size:11.5px;text-align:center;line-height:1.6}
+.sharebtn{margin-left:12px;flex:none;display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.12);color:#eef2ee;border:1px solid rgba(255,255,255,.2);border-radius:22px;padding:8px 14px;font-weight:600;font-size:13px}
+.sharebtn svg{width:16px;height:16px}
+@media(max-width:560px){.sharebtn span{display:none}.sharebtn{padding:9px;margin-left:8px}}
+.modal{position:fixed;inset:0;background:rgba(10,20,16,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:none;align-items:flex-end;justify-content:center;z-index:100}
+.modal.show{display:flex}
+.sheet{background:var(--paper);width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:22px 18px calc(26px + env(safe-area-inset-bottom,0));box-shadow:var(--shadow-lg);position:relative;max-height:92vh;overflow:auto}
+@media(min-width:560px){.modal{align-items:center}.sheet{border-radius:20px}}
+.sheetx{position:absolute;right:14px;top:10px;border:none;background:none;font-size:28px;line-height:1;color:var(--slate)}
+.steps{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.step{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:13px}
+.step b{display:flex;align-items:center;gap:7px;margin-bottom:2px}
+.step b .ico{color:var(--brass-d)}
+.step span{color:var(--slate)}
+.notecard{display:flex;gap:9px;background:var(--brass-bg);border:1px solid #e6d3a3;border-radius:12px;padding:11px 13px;font-size:12.5px;color:#5a4412;margin-bottom:10px;align-items:flex-start}
+.notecard .ico{flex:none;width:18px;height:18px;color:var(--brass-d);margin-top:1px}
+.apkbox summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--emerald-d);padding:6px 0}
+.installbtn{margin-left:8px;flex:none;display:inline-flex;align-items:center;gap:6px;background:var(--brass);color:#241a08;border:none;border-radius:22px;padding:8px 13px;font-weight:700;font-size:13px}
+.installbtn svg{width:15px;height:15px}
+.syncbadge{margin-left:10px;align-self:center;color:#8ee0b8;font-size:11px;font-weight:700;white-space:nowrap}
+@media(max-width:560px){.installbtn span{display:none}.installbtn{padding:9px;margin-left:6px}}
+@media print{nav,header .hstats,.filters,.lactions,.visit,details.exp{display:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brandrow">
+    <div class="mark">K</div>
+    <div class="brand">
+      <h1 class="serif">Kampus</h1>
+      <p>University property portfolio</p>
+    </div>
+    <div class="hstats">
+      <div class="hstat"><b id="hs-short">0</b><span>shortlisted</span></div>
+      <div class="hstat opt"><b id="hs-owned">0</b><span>owned</span></div>
+      <div class="hstat"><b id="hs-cash">R0</b><span>net / month</span></div>
+    </div>
+    <button class="installbtn" id="installBtn" onclick="installApp()" style="display:none">↓ Install</button>
+    <span class="syncbadge" id="syncBadge" style="display:none" title="Live sync is on">● Live</span>
+    <button class="installbtn" id="installBtn" style="display:none" onclick="installApp()" aria-label="Install app">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/></svg>
+      <span>Install</span>
+    </button>
+    <button class="sharebtn" onclick="shareOpen()" aria-label="Share or install app">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.6"/><circle cx="17" cy="6" r="2.6"/><circle cx="17" cy="18" r="2.6"/><path d="M8.4 10.8l6.2-3.4M8.4 13.2l6.2 3.4"/></svg>
+      <span>Share</span>
+    </button>
+  </div>
+</header>
+<nav><div class="tabs" id="tabs"></div></nav>
+<main id="main"></main>
+<div class="foot" id="foot"></div>
+<div class="modal" id="shareModal" onclick="if(event.target===this)shareClose()">
+  <div class="sheet">
+    <button class="sheetx" onclick="shareClose()" aria-label="Close">×</button>
+    <h2 class="serif" style="font-size:22px;margin-bottom:4px">Share &amp; install</h2>
+    <p class="desc" id="shareUrlNote" style="margin-bottom:12px"></p>
+    <div id="shareBody"></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Kampus — university property portfolio (single-file app)
+   Works standalone on PC, Android and iPhone. Data persists
+   per-device; export to CSV / Excel / PDF from any tab.
+   ============================================================ */
+const DB_KEY='kampus:v1';
+const CAMPUSES=[
+  {id:'potch',name:'Potchefstroom',inst:'North-West University (NWU)',areas:'Die Bult · Bult West · Potchefstroom North · Baillie Park · Van der Hoff Park'},
+  {id:'stel', name:'Stellenbosch', inst:'Stellenbosch University (SU)',areas:'Stellenbosch Central · Dennesig · Cloetesville · +30-min belt'},
+  {id:'pta',  name:'Pretoria (UP)',inst:'University of Pretoria — Hatfield',areas:'Hatfield · Arcadia · Sunnyside · Hillcrest · Brooklyn'},
+  {id:'sol',  name:'Solidariteit', inst:'Sol-Tech & Akademia — Centurion',areas:'Die Hoewes · Clubview · Rooihuiskraal · Kosmosdal · Celtisdal'},
+];
+
+/* ---------- inline icon set ---------- */
+const ICONS={
+ bed:'<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8V6h6v2"/>',
+ bath:'<path d="M4 12V6a2 2 0 0 1 4 0"/><path d="M2 12h20v3a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z"/><path d="M6 19l-1 2M18 19l1 2"/>',
+ ruler:'<path d="M3 15L15 3l6 6L9 21z"/><path d="M8 10l1.5 1.5M11 7l1.5 1.5M10 13l1 1"/>',
+ leaf:'<path d="M11 20A7 7 0 0 1 4 13C4 7 11 4 20 4c0 9-3 16-9 16z"/><path d="M4.5 19.5C8 14 12 12 16 11"/>',
+ pin:'<path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.4"/>',
+ shield:'<path d="M12 3l7 3v6c0 5-4 8-7 9-3-1-7-4-7-9V6z"/>',
+ trend:'<path d="M3 17l6-6 4 4 7-7"/><path d="M17 8h4v4"/>',
+ star:'<path d="M12 3l2.6 5.6 6 .6-4.5 4 1.3 6L12 16.7 6.6 19.2l1.3-6-4.5-4 6-.6z"/>',
+ home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+ wallet:'<path d="M3 8a2 2 0 0 1 2-2h13v3"/><path d="M3 8v9a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-6H6"/><circle cx="16.5" cy="13.5" r="1.1"/>',
+ wrench:'<path d="M15 6.5a4 4 0 0 0-5.4 5L4 17l3 3 5.5-5.6a4 4 0 0 0 5-5.4l-2.7 2.7-2.3-2.3z"/>',
+ users:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.5a3 3 0 0 1 0 5M21 20a6 6 0 0 0-4.3-5.7"/>',
+ calc:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M16 11h0M8 15h2M12 15h2M16 15h0M8 18h6"/>',
+ scale:'<path d="M12 3v18M6 21h12"/><path d="M12 6l-6 2 3 5a3 3 0 0 1-6 0zM12 6l6 2-3 5a3 3 0 0 0 6 0z"/>',
+ download:'<path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M4 20h16"/>',
+ wa:'<path d="M12 3a9 9 0 0 0-7.7 13.6L3 21l4.6-1.2A9 9 0 1 0 12 3z"/><path d="M8.5 9.5c0 3.3 2.7 6 6 6"/>',
+ link:'<path d="M10 14a4 4 0 0 0 6 .3l2-2a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-6-.3l-2 2A4 4 0 0 0 11.7 17l1-1"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
+ note:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
+ camera:'<path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.1"/>',
+ filter:'<path d="M4 5h16l-6 8v5l-4 2v-7z"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ phone:'<path d="M15.5 21a15 15 0 0 1-12.5-12.5 2 2 0 0 1 2-2.3h2a2 2 0 0 1 2 1.7c.1.9.3 1.7.6 2.5a2 2 0 0 1-.5 2.1l-1 1a12 12 0 0 0 4.6 4.6l1-1a2 2 0 0 1 2.1-.5c.8.3 1.6.5 2.5.6a2 2 0 0 1 1.7 2v2a2 2 0 0 1-2.3 2z"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+ share:'<circle cx="6" cy="12" r="2.6"/><circle cx="17" cy="6" r="2.6"/><circle cx="17" cy="18" r="2.6"/><path d="M8.4 10.8l6.2-3.4M8.4 13.2l6.2 3.4"/>',
+ grid:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+ flame:'<path d="M12 3c1 3 4 4 4 8a4 4 0 0 1-8 0c0-1 .5-2 1-2.5 0 1.5 1 2.5 2 2.5-1-2 1-4 1-8z"/>',
+};
+function ic(name,cls){return '<svg class="ico '+(cls||'')+'" viewBox="0 0 24 24" aria-hidden="true">'+(ICONS[name]||'')+'</svg>';}
+
+/* ---------- decorative SVG covers / hero (per-campus illustrated art) ---------- */
+const PAL={
+ potch:{sky1:'#2a6f52',sky2:'#123528',sun:'#f2d488',hill:'#17422f',tree:'#2f7d54'},
+ stel :{sky1:'#4a5b93',sky2:'#1b2440',sun:'#f4b678',hill:'#2b3a63',tree:'#3b6f5e'},
+ pta  :{sky1:'#6b4a86',sky2:'#2b1c3f',sun:'#f0b6df',hill:'#452c5c',tree:'#5a7b52'},
+ sol  :{sky1:'#2b6d82',sky2:'#122f3a',sun:'#ecd493',hill:'#173f4b',tree:'#2f7d6a'},
+};
+function pal(cid){return PAL[cid]||PAL.potch;}
+function svgCover(l){
+  const p=pal(l.campus), g='sk'+l.id, s='su'+l.id;
+  const trees=[24,60,344,376].map((x,i)=>`<g transform="translate(${x},176)"><rect x="-3" y="14" width="6" height="18" fill="#0b1e16"/><circle cx="0" cy="2" r="${14+(i%2)*4}" fill="${p.tree}" opacity="0.95"/></g>`).join('');
+  return `<svg class="coversvg" viewBox="0 0 400 225" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs><linearGradient id="${g}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p.sky1}"/><stop offset="1" stop-color="${p.sky2}"/></linearGradient>
+    <radialGradient id="${s}" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${p.sun}"/><stop offset="1" stop-color="${p.sun}" stop-opacity="0"/></radialGradient></defs>
+    <rect width="400" height="225" fill="url(#${g})"/>
+    <circle cx="312" cy="58" r="72" fill="url(#${s})"/><circle cx="312" cy="58" r="24" fill="${p.sun}" opacity="0.95"/>
+    <path d="M0 150 Q120 120 240 145 T400 140 V225 H0Z" fill="${p.hill}" opacity="0.75"/>
+    <g fill="#0b1e16" opacity="0.66"><rect x="118" y="110" width="70" height="95"/><rect x="196" y="90" width="86" height="115"/><rect x="290" y="120" width="58" height="85"/></g>
+    <path d="M196 90 L239 64 L282 90Z" fill="#0a2b20"/>
+    <g fill="${p.sun}" opacity="0.92"><rect x="138" y="130" width="9" height="12" rx="1"/><rect x="162" y="130" width="9" height="12" rx="1"/><rect x="214" y="112" width="10" height="13" rx="1"/><rect x="240" y="112" width="10" height="13" rx="1"/><rect x="214" y="140" width="10" height="13" rx="1"/><rect x="240" y="140" width="10" height="13" rx="1"/><rect x="306" y="140" width="9" height="12" rx="1"/></g>
+    <path d="M0 188 Q120 176 240 186 T400 182 V225 H0Z" fill="#0a1c14"/>
+    ${trees}
+  </svg>`;
+}
+function heroSvg(cid){
+  const p=pal(cid), g='hg'+cid, s='hs'+cid;
+  const mountains = cid==='stel' ? `<g fill="${p.hill}" opacity="0.9"><path d="M0 214 L190 84 L360 214Z"/><path d="M250 214 L450 66 L650 214Z"/><path d="M560 214 L790 96 L1010 214Z"/></g>` : '';
+  const jac = cid==='pta' ? `<g fill="#8a5bb0" opacity="0.5">${[120,300,520,760,980,1120].map((x,i)=>`<circle cx="${x}" cy="${150+(i%2)*18}" r="34"/>`).join('')}</g>` : '';
+  const trees=[70,150,250,360,470,600,720,850,980,1110].map((x,i)=>`<g transform="translate(${x},252)"><rect x="-3" y="16" width="6" height="20" fill="#0c231a"/><circle cx="0" cy="4" r="${16+(i%3)*3}" fill="${p.tree}" opacity="0.92"/></g>`).join('');
+  const buildings=`<g fill="#0c221a" opacity="0.62"><rect x="60" y="150" width="120" height="120"/><rect x="330" y="118" width="130" height="152"/><rect x="540" y="150" width="120" height="120"/><rect x="760" y="120" width="140" height="150"/><rect x="990" y="150" width="120" height="120"/></g>`;
+  const wins=`<g fill="${p.sun}" opacity="0.82">${[360,392,424,560,592,780,812,844,1010,1042].map(x=>`<rect x="${x}" y="150" width="8" height="11" rx="1"/><rect x="${x}" y="182" width="8" height="11" rx="1"/>`).join('')}</g>`;
+  return `<svg class="herobg" viewBox="0 0 1200 320" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs><linearGradient id="${g}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p.sky1}"/><stop offset="1" stop-color="${p.sky2}"/></linearGradient>
+    <radialGradient id="${s}" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${p.sun}"/><stop offset="1" stop-color="${p.sun}" stop-opacity="0"/></radialGradient></defs>
+    <rect width="1200" height="320" fill="url(#${g})"/>
+    <circle cx="980" cy="82" r="92" fill="url(#${s})"/><circle cx="980" cy="82" r="34" fill="${p.sun}" opacity="0.95"/>
+    ${mountains}${jac}
+    <path d="M0 232 Q300 192 600 222 T1200 212 V320 H0Z" fill="${p.hill}" opacity="0.8"/>
+    ${buildings}${wins}
+    <path d="M0 264 Q300 246 600 262 T1200 258 V320 H0Z" fill="#0b1f17"/>
+    ${trees}
+  </svg>`;
+}
+
+/* ---------- listing preview images (best-effort, falls back to SVG cover) ---------- */
+function previewChain(l){
+  const arr=[];
+  if(l.image)arr.push(l.image);
+  if((state.settings.previews!==false)&&l.url&&/^https?:/i.test(l.url)){
+    const e=encodeURIComponent(l.url);
+    arr.push('https://api.microlink.io/?url='+e+'&embed=image.url');           // real listing photo (og:image)
+    arr.push('https://s.wordpress.com/mshots/v1/'+e+'?w=680&h=390');           // page screenshot fallback
+  }
+  return arr;
+}
+function coverImg(l){
+  const ch=previewChain(l); if(!ch.length)return '';
+  return `<img class="coverimg" src="${esc(ch[0])}" data-ch='${esc(JSON.stringify(ch))}' data-i="0" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="nextPreview(this)">`;
+}
+function nextPreview(img){try{const ch=JSON.parse(img.getAttribute('data-ch')||'[]');let i=(+img.getAttribute('data-i')||0)+1;if(i<ch.length){img.setAttribute('data-i',i);img.src=ch[i];}else{img.style.display='none';}}catch(e){img.style.display='none';}}
+function togglePreviews(){const cur=state.settings.previews!==false;state.settings.previews=!cur;persist();}
+function seedListings(){
+  const L=(o)=>Object.assign({id:uid(),status:'new',visit:'',whatsapp:false,notes:'',seen:'Sep 2026',radius:'core',town:'',drive:'',image:'',safety:'',demand:'',areaNote:'',agentName:'',agency:'',agentPhone:'',agentEmail:''},o);
+  return [
+   L({campus:'potch',title:'2-bed apartment, enclosed veranda',suburb:'Potchefstroom North',price:699000,beds:2,baths:1.5,size:null,garden:true,complex:'Secure complex, walk to NWU',estRent:7500,drive:'Walk to NWU',
+      url:'https://www.property24.com/apartments-for-sale/potchefstroom-north/potchefstroom/north-west/33581',source:'Property24'}),
+   L({campus:'potch',title:'Modern 2-bed 2-bath near NWU main gate',suburb:'Die Bult',price:null,beds:2,baths:2,size:null,garden:true,complex:'Granite kitchen, private patio, 2 parking',estRent:8500,drive:'~5 min to NWU',
+      url:'https://www.privateproperty.co.za/for-sale/north-west/north-west-southern/potchefstroom/die-bult/T5563801',source:'Private Property',notes:'Confirm asking price on listing.'}),
+   L({campus:'potch',title:'2-bed ground-floor flat, 57m²',suburb:'Die Bult',price:685000,beds:2,baths:1,size:57,garden:false,complex:'Secure complex, covered parking',estRent:7500,drive:'Walk to NWU',
+      url:'https://www.property24.com/apartments-for-sale/potchefstroom/north-west/125',source:'Property24',notes:'Representative Die Bult 2-bed — browse live list for exact unit.'}),
+   L({campus:'potch',title:'2-bed 2-bath, Baccalaureus',suburb:'Van der Hoff Park',price:645000,beds:2,baths:2,size:49,garden:false,complex:'Secure, balconies · levy ~R1 400 · rates ~R450',estRent:7000,drive:'~4 km to NWU',
+      url:'https://property.mg.co.za/2-bedroom-apartment-flat-for-sale-in-van-der-hoff-park-115642560',source:'PrivateProperty/MG'}),
+   L({campus:'potch',title:'2-bed 2-bath, furnished — investor stock',suburb:'Van der Hoff Park',price:530000,beds:2,baths:2,size:55,garden:false,complex:'Furnished, secure, heat pumps · levy ~R1 200',estRent:6800,drive:'~4 km to NWU',
+      url:'https://property.mg.co.za/2-bedroom-apartment-flat-for-sale-in-van-der-hoff-park-114644843',source:'PrivateProperty/MG'}),
+   L({campus:'potch',title:'2-bed 1.5-bath, 86m² — spacious',suburb:'Baillie Park',price:615000,beds:2,baths:1.5,size:86,garden:true,complex:'Private patios · walk to Mooirivier Mall · levy ~R400',estRent:7000,drive:'~5 km to NWU',
+      url:'https://property.mg.co.za/2-bedroom-apartment-flat-for-sale-in-baillie-park-115721480',source:'PrivateProperty/MG'}),
+
+   L({campus:'stel',title:'2-bed starter apartment (REDUCED)',suburb:'Cloetesville',price:675000,beds:2,baths:1,size:null,garden:false,complex:'54 Curry Road — secure complex, 3 parking',estRent:7000,drive:'~3 km to SU',
+      url:'https://property.mg.co.za/2-bedroom-apartments-flats-for-sale-in-stellenbosch-c459',source:'PrivateProperty/MG',notes:'Cheapest in-town bracket in Stellenbosch.'}),
+   L({campus:'stel',title:'2-bed apartment, bright living area',suburb:'Cloetesville',price:675000,beds:2,baths:1,size:null,garden:false,complex:'19 Eike Street — well designed layout',estRent:7000,drive:'~3 km to SU',
+      url:'https://property.mg.co.za/2-bedroom-apartments-flats-for-sale-in-stellenbosch-c459',source:'PrivateProperty/MG'}),
+   L({campus:'stel',radius:'ext',title:'2-bed, no transfer duty',suburb:'Eersterivier',town:'Cape Metro',price:680000,beds:2,baths:1,size:null,garden:false,complex:'Faure Mews, Houghton Place · 2 parking',estRent:7000,drive:'~30 min to SU',
+      url:'https://www.property24.com/for-sale/agency/seeff-brackenfell-kraaifontein-kuils-river/25876',source:'Seeff'}),
+   L({campus:'stel',radius:'ext',title:'2-bed in secure complex',suburb:'Belmont Park, Kraaifontein',town:'Cape Metro',price:595000,beds:2,baths:1,size:null,garden:false,complex:'Affordable secure complex',estRent:6800,drive:'~30 min to SU',
+      url:'https://www.property24.com/for-sale/agency/seeff-brackenfell-kraaifontein-kuils-river/25876',source:'Seeff'}),
+   L({campus:'stel',radius:'ext',title:'2-bed investor unit (needs cosmetics)',suburb:'Gersham, Kuils River',town:'Cape Metro',price:570000,beds:2,baths:1,size:null,garden:false,complex:'SS Strawberry Place · high-demand rental pocket',estRent:6800,drive:'~30–35 min to SU',
+      url:'https://www.myroof.co.za/SUB840-Brackenfell',source:'MyRoof'}),
+   L({campus:'stel',radius:'ext',title:'2-bed 1-bath apartment',suburb:'Kraaifontein',town:'Cape Metro',price:700000,beds:2,baths:1,size:null,garden:false,complex:'Private sale',estRent:7000,drive:'~30 min to SU',
+      url:'https://www.myroof.co.za/MR139921-2-Bedroom-1-Bathroom-FlatorApartment-for-Sale-in-Kraaifontein-Capetown-Northern-Suburbs-Western-Cape',source:'MyRoof'}),
+   L({campus:'stel',title:'2-bed near campus (over budget — reference comp)',suburb:'Stellenbosch Central',price:1299000,beds:2,baths:1,size:null,garden:false,complex:'La Rez II, Taylor Street — walk to SU',estRent:11000,drive:'Walk to SU',
+      url:'https://www.property24.com/apartments-for-sale/stellenbosch-central/stellenbosch/western-cape/8566',source:'Property24',notes:'Shows the true central-Stellenbosch entry price.'}),
+
+   L({campus:'pta',title:'2-bed apartment, 86m² — investor\'s dream',suburb:'Arcadia',price:575000,beds:2,baths:1,size:86,garden:false,complex:'571 Francis Baard St',estRent:7000,drive:'~2 km to UP',
+      url:'https://www.property24.com/apartments-for-sale/arcadia/pretoria/gauteng/301',source:'Property24'}),
+   L({campus:'pta',title:'2-bed ground-floor apartment, 87m²',suburb:'Arcadia',price:595000,beds:2,baths:1,size:87,garden:true,complex:'Ground floor, communal garden',estRent:7000,drive:'~2 km to UP',
+      url:'https://www.property24.com/apartments-for-sale/arcadia/pretoria/gauteng/301',source:'Property24'}),
+   L({campus:'pta',title:'2.5-bed duplex, 97m²',suburb:'Arcadia',price:560000,beds:2,baths:1,size:97,garden:false,complex:'622 Pretorius St — well maintained duplex',estRent:7200,drive:'~2 km to UP',
+      url:'https://www.property24.com/apartments-for-sale/arcadia/pretoria/gauteng/301',source:'Property24'}),
+   L({campus:'pta',title:'2.5-bed apartment, 83m² — Valdice',suburb:'Arcadia',price:580000,beds:2,baths:1,size:83,garden:false,complex:'552 Church St',estRent:7000,drive:'~2 km to UP',
+      url:'https://www.property24.com/apartments-for-sale/arcadia/pretoria/gauteng/301',source:'Property24'}),
+   L({campus:'pta',title:'2-bed 2-bath, 89m² — L\'hirondale',suburb:'Sunnyside',price:499000,beds:2,baths:2,size:89,garden:false,complex:'157 Relly St · secure controlled access',estRent:6500,drive:'~3 km to UP',
+      url:'https://www.property24.com/for-sale/sunnyside/pretoria/gauteng/41',source:'Property24'}),
+   L({campus:'pta',title:'2.5-bed apartment, 90m²',suburb:'Sunnyside',price:550000,beds:2,baths:1.5,size:90,garden:false,complex:'Flexible layout · secure complex',estRent:6500,drive:'~3 km to UP',
+      url:'https://www.property24.com/for-sale/sunnyside/pretoria/gauteng/41',source:'Property24'}),
+   L({campus:'pta',title:'2-bed in Hatfield (walk to Tuks — over budget)',suburb:'Hatfield',price:900000,beds:2,baths:1,size:58,garden:false,complex:'Lunnon Crest, 162 Lunnon Rd',estRent:8000,drive:'Walk to UP',
+      url:'https://www.property24.com/for-sale/hatfield/pretoria/gauteng/304',source:'Property24',notes:'Closest to campus but above R700k.'}),
+
+   L({campus:'sol',title:'2-bed apartment, 58m² — La Comores',suburb:'Die Hoewes',price:595000,beds:2,baths:1,size:58,garden:false,complex:'250 Jean Ave · near Akademia (Die Hoewes)',estRent:8000,drive:'~5 min to Akademia',
+      url:'https://www.property24.com/apartments-for-sale/die-hoewes/centurion/gauteng/433',source:'Property24',notes:'Best value near Akademia.'}),
+   L({campus:'sol',title:'2-bed apartment, 59m² — Summerfields',suburb:'Kosmosdal',price:700000,beds:2,baths:1,size:59,garden:false,complex:'Sole mandate, secure estate',estRent:7800,drive:'~12 min to campuses',
+      url:'https://www.property24.com/apartments-for-sale/centurion/gauteng/3',source:'Property24'}),
+   L({campus:'sol',title:'2-bed townhouse, 81m²',suburb:'Kosmosdal',price:640000,beds:2,baths:1,size:81,garden:true,complex:'Private sale, 1 parking',estRent:7800,drive:'~12 min to campuses',
+      url:'https://www.property24.com/apartments-for-sale/centurion/gauteng/3',source:'Property24/Leadhome'}),
+   L({campus:'sol',title:'2-bed townhouse, secure estate',suburb:'Celtisdal',price:703000,beds:2,baths:1,size:82,garden:true,complex:'Warm, clean, homely — just over budget',estRent:8000,drive:'~10 min to campuses',
+      url:'https://www.property24.com/apartments-for-sale/centurion/gauteng/3',source:'Property24'}),
+   L({campus:'sol',title:'2-bed, Villa Grigio (Amberfield)',suburb:'Rooihuiskraal North',price:709800,beds:2,baths:1,size:50,garden:false,complex:'Secure estate · direct from developer',estRent:7500,drive:'~10 min to Sol-Tech',
+      url:'https://www.property24.com/for-sale/rooihuiskraal-north/centurion/gauteng/422',source:'Property24'}),
+
+   L({campus:'potch',title:'2-bed 2-bath townhouse, 90m² — family-friendly',suburb:'Miederpark',price:730000,beds:2,baths:2,size:90,garden:true,complex:'Garden, garage, en-suite · secure complex · no transfer duty',estRent:7500,drive:'~4 km to NWU',
+      url:'https://property.mg.co.za/2-bedroom-townhouse-for-sale-in-miederpark-115112860',source:'PrivateProperty/MG',notes:'Family-suitable & easy resale — not student-only.'}),
+   L({campus:'potch',title:'2-bed full-title townhouse — garden & garage',suburb:'Miederpark',price:799000,beds:2,baths:1,size:null,garden:true,complex:'Full title · scullery · garage + carport · pet-friendly garden',estRent:7500,drive:'~4 km to NWU',
+      url:'https://property.mg.co.za/2-bedroom-townhouse-for-sale-in-miederpark-114438329',source:'PrivateProperty/MG',notes:'Full title = strong resale.'}),
+   L({campus:'potch',title:'2-bed 2-bath townhouse, 84m² — garden & braai',suburb:'Miederpark',price:780000,beds:2,baths:2,size:84,garden:true,complex:'Pet-friendly garden, braai, 2 parking',estRent:7500,drive:'~4 km to NWU',
+      url:'https://property.mg.co.za/2-bedroom-apartment-flat-for-sale-in-miederpark-110962145',source:'PrivateProperty/MG',notes:'Older listing — confirm still available.'}),
+   L({campus:'potch',title:'2-bed 2-bath, 68m² — secure estate',suburb:'Grimbeeck Park',price:899000,beds:2,baths:2,size:68,garden:false,complex:'Modern secure estate · levy ~R450 · rates ~R785',estRent:7800,drive:'~3 km to NWU',
+      url:'https://property.mg.co.za/2-bedroom-apartment-flat-for-sale-in-grimbeeck-park-114957771',source:'PrivateProperty/MG',notes:'Grimbeeck Park entry ~R899k (above budget) — reference.'}),
+  ];
+}
+
+const SEED_TENANT_CHECKLIST=[
+ 'Written lease signed by both parties (Rental Housing Act)',
+ 'Deposit held in a separate interest-bearing account',
+ 'Ingoing inspection done & signed',
+ 'Body corporate / HOA conduct rules given to tenant',
+ 'FICA / ID copy of tenant on file',
+ 'Monthly rent, escalation % and due date in writing',
+ 'Who pays utilities (water, electricity, refuse) specified',
+ 'Notice period and renewal terms specified',
+ 'Outgoing inspection & deposit refund process agreed',
+];
+const EXPENSE_CATEGORIES=['Bond instalment','Levy (body corporate)','Special levy','Municipal rates & taxes','Water & sanitation','Electricity (common/prepaid top-up)','Refuse','Buildings insurance','Landlord/contents insurance','Maintenance & repairs','Managing/rental agent commission','Tenant procurement (letting fee)','Garden & complex services','Security','Compliance certificates (electrical/gas/water)','Advertising','Accounting/tax fees','Bank charges','Legal fees','Other'];
+const INCOME_CATEGORIES=['Rent','Parking','Utility recovery','Late fee','Other'];
+function defaultSettings(){return {budget:850000,deposit:10,interest:11.0,term:20,levy:1200,rates:600,insurance:350,maintPct:5,mgmtPct:9,vacancyPct:5,enquiry:'',contactName:'',previews:true};}
+function defaultPrefs(){return {potch:['Grimbeeck Park','Van der Hoff Park','Baillie Park','Miederpark'],stel:[],pta:[],sol:[]};}
+
+let state={listings:[],owned:[],tenants:[],settings:defaultSettings(),prefSuburbs:defaultPrefs()};
+let active='home', campusFilter='all', ownedTab={}, focusOnlyMap={}, sortMode='score';
+function uid(){return Math.random().toString(36).slice(2,9)}
+
+/* ---------- persistence: resilient, never throws ---------- */
+let persistMode='memory'; const _mem={};
+const store={
+  async get(k){
+    if(typeof window!=='undefined'&&window.storage&&window.storage.get){try{const r=await window.storage.get(k);persistMode='cloud';return (r&&r.value!=null)?r.value:(_mem[k]??null);}catch(e){}}
+    try{const v=localStorage.getItem(k);if(persistMode!=='cloud')persistMode='local';return v!=null?v:(_mem[k]??null);}catch(e){}
+    return _mem[k]??null;
+  },
+  async set(k,v){
+    _mem[k]=v;let ok=false;
+    if(typeof window!=='undefined'&&window.storage&&window.storage.set){try{await window.storage.set(k,v);persistMode='cloud';ok=true;}catch(e){}}
+    if(!ok){try{localStorage.setItem(k,v);if(persistMode!=='cloud')persistMode='local';ok=true;}catch(e){}}
+    return ok;
+  }
+};
+async function loadDB(){const raw=await store.get(DB_KEY);if(raw){try{return JSON.parse(raw);}catch(e){}}return null;}
+async function saveDB(){await store.set(DB_KEY,JSON.stringify(state));}
+
+/* ---------- helpers ---------- */
+const fmt=(n)=> n==null||isNaN(n)?'—':'R'+Math.round(n).toLocaleString('en-ZA');
+const fmt0=(n)=> 'R'+Math.round(n).toLocaleString('en-ZA');
+const esc=(s)=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const dateStr=()=>new Date().toISOString().slice(0,10);
+function bondInstalment(p){const s=state.settings;const r=(s.interest/100)/12,n=s.term*12;if(p<=0)return 0;if(r===0)return p/n;return p*r/(1-Math.pow(1+r,-n));}
+function estCosts(price,estRent){const s=state.settings;const bond=bondInstalment(price*(1-s.deposit/100));const maint=price*(s.maintPct/100)/12;const mgmt=(estRent||0)*(s.mgmtPct/100);const vac=(estRent||0)*(s.vacancyPct/100);const total=bond+(+s.levy)+(+s.rates)+(+s.insurance)+maint+mgmt+vac;return{bond,levy:+s.levy,rates:+s.rates,insurance:+s.insurance,maint,mgmt,vac,total};}
+function budgetVal(){return state.settings.budget||850000;}
+function budgetLbl(){const b=budgetVal();return 'R'+Math.round(b/1000)+'k';}
+function norm(s){return String(s||'').toLowerCase().replace(/\s+/g,' ').trim();}
+function prefsFor(cid){return (state.prefSuburbs&&state.prefSuburbs[cid])||[];}
+function inPref(l){const p=prefsFor(l.campus);if(!p.length)return true;const s=norm(l.suburb);return p.some(x=>{const n=norm(x);return n&&(s.includes(n)||n.includes(s));});}
+function campusMedian(campus){const B=budgetVal();const v=state.listings.filter(l=>l.campus===campus&&l.price&&l.price<=B).map(l=>l.price).sort((a,b)=>a-b);if(!v.length){const a=state.listings.filter(l=>l.campus===campus&&l.price).map(l=>l.price).sort((x,y)=>x-y);return a.length?a[Math.floor(a.length/2)]:null;}return v[Math.floor(v.length/2)];}
+function priceBadge(l){if(l.price==null)return{cls:'b-q',txt:'Price?'};if(l.price>budgetVal())return{cls:'b-over',txt:'Over '+budgetLbl()};const m=campusMedian(l.campus);if(!m)return{cls:'b-sim',txt:'—'};if(l.price<m*0.92)return{cls:'b-cheap',txt:'Cheaper for area'};if(l.price>m*1.08)return{cls:'b-exp',txt:'Pricier for area'};return{cls:'b-sim',txt:'Typical for area'};}
+const SAFE={high:{t:'Safe area',c:'p-good'},med:{t:'Mixed area',c:'p-warn'},low:{t:'Caution',c:'p-bad'}};
+const DEM={high:{t:'High demand',c:'p-good'},med:{t:'Steady demand',c:'p-warn'},low:{t:'Low demand',c:'p-bad'}};
+
+/* ---------- deal score & sorting ---------- */
+function netOf(l){if(l.price==null)return -1e9;const c=estCosts(l.price,l.estRent);return (l.estRent||0)-c.total;}
+function dealScore(l){
+  if(l.price==null)return null;
+  let s=0;const m=campusMedian(l.campus)||l.price,r=l.price/m;
+  s+= r<=0.85?25:r<=0.95?20:r<=1.05?14:r<=1.15?8:3;      // value vs area (25)
+  const net=netOf(l);
+  s+= net>=1500?30:net>=500?24:net>=0?18:net>=-500?11:net>=-1500?5:0; // cashflow (30)
+  s+= l.price<=budgetVal()?15:0;                          // within budget (15)
+  s+= l.garden?8:0;                                       // garden/future-proof (8)
+  s+= l.size?(l.size>=70?7:l.size>=55?4:2):3;             // space (7)
+  s+= l.safety==='high'?8:l.safety==='med'?4:l.safety==='low'?0:3; // safety (8)
+  s+= l.demand==='high'?7:l.demand==='med'?4:l.demand==='low'?0:3; // demand (7)
+  return Math.max(0,Math.min(100,Math.round(s)));
+}
+function dealTier(sc){return sc>=75?'good':sc>=55?'warn':'bad';}
+function sortListings(list){const a=list.slice();
+  if(sortMode==='score')a.sort((x,y)=>(dealScore(y)??-1)-(dealScore(x)??-1));
+  else if(sortMode==='priceAsc')a.sort((x,y)=>(x.price??1e12)-(y.price??1e12));
+  else if(sortMode==='netDesc')a.sort((x,y)=>netOf(y)-netOf(x));
+  return a; // 'new' keeps insertion order
+}
+function sortControl(){return `<select class="sortsel" onchange="sortMode=this.value;render()">
+  <option value="score"${sortMode==='score'?' selected':''}>Sort: best deal</option>
+  <option value="priceAsc"${sortMode==='priceAsc'?' selected':''}>Sort: price ↑</option>
+  <option value="netDesc"${sortMode==='netDesc'?' selected':''}>Sort: net cashflow</option>
+  <option value="new"${sortMode==='new'?' selected':''}>Sort: as added</option>
+</select>`;}
+function miniListing(l){const sc=dealScore(l);return `<button class="minirow" onclick="active='${l.campus}';campusFilter='all';render()"><span class="mini-l"><b>${l.price!=null?fmt(l.price):'—'}</b><span>${esc(l.suburb)} · ${CAMPUSES.find(c=>c.id===l.campus).name}</span></span>${sc!=null?`<span class="badge score-${dealTier(sc)}">◆ ${sc}</span>`:''}</button>`;}
+
+/* ============================================================ RENDER ============================================================ */
+function render(){
+  renderTabs();renderHeader();
+  const m=document.getElementById('main');
+  if(active==='home')m.innerHTML=viewHome();
+  else if(['potch','stel','pta','sol'].includes(active))m.innerHTML=viewCampus(active);
+  else if(active==='short')m.innerHTML=viewShortlist();
+  else if(active==='compare')m.innerHTML=viewCompare();
+  else if(active==='owned')m.innerHTML=viewOwned();
+  else if(active==='fin')m.innerHTML=viewFinances();
+  else if(active==='calc')m.innerHTML=viewCalc();
+  else if(active==='ten')m.innerHTML=viewTenants();
+  else if(active==='add')m.innerHTML=viewAdd();
+  if(active==='calc')calcCompute();
+  let p;
+  if(persistMode==='cloud')p='Saved automatically — your data persists across sessions.';
+  else if(persistMode==='local')p='Saved on this device (browser storage).';
+  else p='⚠ Storage is blocked in this viewer — data is kept for this session only. Use any Export button (or Finances → Export JSON) to keep a copy.';
+  document.getElementById('foot').innerHTML=p+' &nbsp;·&nbsp; Tap <b>Share</b> (top-right) to install it or send it on WhatsApp. &nbsp;·&nbsp; Listings seeded from public portals, Sep 2026 — confirm price &amp; availability on each link before acting.';
+  window.scrollTo(0,0);
+}
+function renderHeader(){
+  document.getElementById('hs-short').textContent=state.listings.filter(l=>l.status==='shortlist').length;
+  document.getElementById('hs-owned').textContent=state.owned.length;
+  let cash=0;state.owned.forEach(o=>cash+=ownedMonthly(o).net);
+  const el=document.getElementById('hs-cash');el.textContent=fmt0(cash);el.style.color=cash>=0?'#8ee0b8':'#e59a8f';
+}
+function renderTabs(){
+  const t=document.getElementById('tabs');t.innerHTML='';
+  const items=[
+   {id:'home',ico:'grid',label:'Home'},
+   ...CAMPUSES.map(c=>({id:c.id,label:c.name,cnt:state.listings.filter(l=>l.campus===c.id).length})),
+   {id:'short',ico:'star',label:'Shortlist',cnt:state.listings.filter(l=>l.status==='shortlist').length},
+   {id:'compare',ico:'scale',label:'Compare'},
+   {id:'owned',ico:'home',label:'Owned',cnt:state.owned.length},
+   {id:'fin',ico:'wallet',label:'Finances'},
+   {id:'calc',ico:'calc',label:'Calculator'},
+   {id:'ten',ico:'users',label:'Tenants',cnt:state.tenants.length},
+   {id:'add',ico:'plus',label:'Add'},
+  ];
+  items.forEach(it=>{const b=document.createElement('button');b.className='tab'+(active===it.id?' active':'');
+    b.innerHTML=(it.ico?ic(it.ico):'')+it.label+(it.cnt!=null?` <span class="cnt">${it.cnt}</span>`:'');
+    b.onclick=()=>{active=it.id;render()};t.appendChild(b);});
+}
+
+/* ---------- export dropdown ---------- */
+function exportBar(scope){
+  return `<details class="exp"><summary>${ic('download')} Export</summary>
+    <div class="expmenu">
+      <button onclick="closeExp(this);doExport('${scope}','csv')">CSV <span class="k">.csv</span></button>
+      <button onclick="closeExp(this);doExport('${scope}','xlsx')">Excel <span class="k">.xls</span></button>
+      <button onclick="closeExp(this);doExport('${scope}','pdf')">PDF <span class="k">.pdf</span></button>
+    </div></details>`;
+}
+function closeExp(b){const d=b.closest('details');if(d)d.open=false;}
+
+/* ---------- HOME / DASHBOARD ---------- */
+function viewHome(){
+  const hr=new Date().getHours(),greet=hr<12?'Good morning':hr<18?'Good afternoon':'Good evening';
+  const short=state.listings.filter(l=>l.status==='shortlist');
+  const pending=short.filter(l=>!l.visit);
+  let net=0;state.owned.forEach(o=>net+=ownedMonthly(o).net);
+  const picks=state.listings.filter(l=>l.price&&l.price<=budgetVal()).map(l=>({l,s:dealScore(l)})).filter(x=>x.s!=null).sort((a,b)=>b.s-a.s).slice(0,3).map(x=>x.l);
+  const maint=[];state.owned.forEach(o=>(o.maintenance||[]).filter(t=>!t.done).forEach(t=>maint.push({o,t})));
+  maint.sort((a,b)=>String(a.t.due||'9999').localeCompare(String(b.t.due||'9999')));
+  const stat=(v,lbl,cls)=>`<div class="statcard"><div class="statv ${cls||''}">${v}</div><div class="statl">${lbl}</div></div>`;
+  return `
+   <div class="hero" style="min-height:150px">${heroSvg('sol')}
+     <div class="heroinner"><div class="eyebrow">${greet}</div><h2 class="herotitle">Your portfolio</h2>
+       <div class="herometa">${ic('pin')} ${state.listings.length} listings across 4 campuses · budget ${fmt(budgetVal())}</div></div></div>
+   <div class="statgrid">
+     ${stat(short.length,'Shortlisted')}
+     ${stat(pending.length,'Awaiting a visit',pending.length?'warn':'')}
+     ${stat(state.owned.length,'Owned')}
+     ${stat((net>=0?'+':'')+fmt0(net),'Net / month',net>=0?'pos':'neg')}
+   </div>
+   <div class="qactions">
+     <button class="btn ghost mini" onclick="active='add';render()">${ic('plus')} Add listing</button>
+     <button class="btn ghost mini" onclick="active='compare';render()">${ic('scale')} Compare</button>
+     <button class="btn ghost mini" onclick="active='calc';render()">${ic('calc')} Calculator</button>
+     <button class="btn ghost mini" onclick="shareOpen()">${ic('share')} Share / install</button>
+   </div>
+   <div class="sectionhead" style="margin-top:18px"><div><h2>${ic('flame')} Top value picks</h2><div class="sub">Best deal score within your ${fmt(budgetVal())} budget</div></div></div>
+   ${picks.length?`<div class="grid">${picks.map(listingCard).join('')}</div>`:`<div class="empty">${ic('star')}Add or price some listings and your best picks appear here.</div>`}
+   ${pending.length?`<div class="sectionhead" style="margin-top:20px"><div><h3 class="serif" style="font-size:17px">Shortlisted — book a viewing</h3><div class="sub">${pending.length} not visited yet</div></div></div><div class="minilist">${pending.slice(0,6).map(miniListing).join('')}</div>`:''}
+   ${maint.length?`<div class="sectionhead" style="margin-top:20px"><div><h3 class="serif" style="font-size:17px">Upcoming maintenance</h3></div></div><div class="panel">${maint.slice(0,6).map(m=>`<div class="kv"><span>${esc(m.t.title)} <span class="tag">${esc(m.o.name)}</span></span><b>${m.t.due||'—'}${m.t.cost?' · '+fmt(m.t.cost):''}</b></div>`).join('')}</div>`:''}
+  `;
+}
+
+/* ---------- CAMPUS ---------- */
+function viewCampus(cid){
+  const c=CAMPUSES.find(x=>x.id===cid);
+  let list=state.listings.filter(l=>l.campus===cid);
+  if(campusFilter==='budget')list=list.filter(l=>l.price==null||l.price<=budgetVal());
+  if(campusFilter==='garden')list=list.filter(l=>l.garden);
+  if(campusFilter==='short')list=list.filter(l=>l.status==='shortlist');
+  if(campusFilter==='core')list=list.filter(l=>l.radius!=='ext');
+  if(campusFilter==='ext')list=list.filter(l=>l.radius==='ext');
+  const focus=!!focusOnlyMap[cid], prefs=prefsFor(cid);
+  if(focus&&prefs.length)list=list.filter(inPref);
+  list=sortListings(list);
+  const med=campusMedian(cid), total=state.listings.filter(l=>l.campus===cid).length;
+  let notice='';
+  if(cid==='stel')notice=`<div class="notice"><b>Stellenbosch reality:</b> under ${budgetLbl()} the only in-town stock is <b>Cloetesville</b>; central walk-to-SU 2-beds start ~<b>R1.3m</b>. So I added real <b>~30-min commuter-belt</b> options (Kraaifontein, Kuils River, Eersterivier) — tap <b>~30-min radius</b> to see just those.</div>`;
+  if(cid==='sol')notice=`<div class="notice"><b>Solidariteit:</b> Sol-Tech &amp; Akademia sit in <b>Centurion</b> (Die Hoewes, Clubview, Rooihuiskraal). A new Akademia campus is rising east of Pretoria on <b>Boschkop Road</b> — one to watch for future demand.</div>`;
+  return `
+   <div class="hero">${heroSvg(cid)}
+     <div class="heroinner">
+       <div class="eyebrow">${esc(c.inst)}</div>
+       <h2 class="herotitle">${esc(c.name)}</h2>
+       <div class="herometa">${ic('pin')} Within ~15 km: ${esc(c.areas)}</div>
+     </div>
+   </div>
+   ${notice}
+   <div class="toolbar">
+     <div class="sub">Median tracked 2-bed (≤${budgetLbl()}): <b>${med?fmt(med):'—'}</b> · ${total} listings · budget <b>${fmt(budgetVal())}</b></div>
+     <div class="spacer"></div>${sortControl()} ${exportBar('campus:'+cid)}
+   </div>
+   <details class="focuspanel" ${prefs.length?'':'open'}>
+     <summary>${ic('pin')} Focus areas${prefs.length?` (${prefs.length})`:''}</summary>
+     <div class="focusbody">
+       <div class="prefpills">${prefs.length?prefs.map((s,i)=>`<span class="prefpill">${esc(s)}<button onclick="removePref('${cid}',${i})" title="Remove">×</button></span>`).join(''):'<span class="hint">No focus areas yet — add the suburbs you actually want.</span>'}</div>
+       <button class="btn ghost mini" onclick="addPref('${cid}')">${ic('plus')} Add suburb</button>
+       <div class="hint">Suburbs you want to focus on (from what you find on the ground &amp; area reviews). Turn on <b>Focus areas only</b> below to hide everywhere else.</div>
+     </div>
+   </details>
+   <div class="filters">
+     ${chip('all','All ('+total+')')}${chip('budget','Under '+budgetLbl())}${chip('garden','Garden/patio')}
+     ${chip('core','Within 15 km')}${state.listings.some(l=>l.campus===cid&&l.radius==='ext')?chip('ext','~30-min radius'):''}${chip('short','Shortlisted')}
+     ${prefs.length?`<button class="chip focuschip ${focus?'on':''}" onclick="toggleFocus('${cid}')">★ Focus areas only</button>`:''}
+   </div>
+   ${list.length?`<div class="grid">${list.map(listingCard).join('')}</div>`:`<div class="empty">${ic('home')}No listings match. Try “All”, or use <b>Add</b> to capture a new find.</div>`}`;
+}
+function chip(v,label){return `<button class="chip ${campusFilter===v?'on':''}" onclick="campusFilter='${v}';render()">${esc(label)}</button>`}
+
+function listingCard(l){
+  const pb=priceBadge(l), cost=l.price?estCosts(l.price,l.estRent):null, net=cost?(l.estRent-cost.total):null;
+  const rm2=(l.price&&l.size)?Math.round(l.price/l.size):null;
+  const saf=l.safety?SAFE[l.safety]:null, dem=l.demand?DEM[l.demand]:null;
+  return `<div class="lcard ${l.status==='shortlist'?'shortlisted':''}">
+    <div class="cover">${svgCover(l)}
+      ${coverImg(l)}
+      <div class="coverprice">${l.price!=null?fmt(l.price):'Price on listing'}</div>
+      ${l.radius==='ext'?'<div class="covertag">~30 min</div>':''}
+      <button class="covercam" onclick="setImage('${l.id}')" title="Add / replace photo">${ic('camera')}</button>
+    </div>
+    <div class="lbody">
+      <div class="badges">${(()=>{const sc=dealScore(l);return sc!=null?`<span class="badge score-${dealTier(sc)}" title="Deal score">◆ ${sc}</span>`:'';})()}<span class="badge ${pb.cls}">${pb.txt}</span>${l.garden?`<span class="badge b-garden">${ic('leaf')} Garden</span>`:''}${(prefsFor(l.campus).length&&inPref(l))?'<span class="badge b-focus">★ Focus area</span>':''}</div>
+      <div class="ltitle">${esc(l.title)}</div>
+      <div class="lsub">${ic('pin')}<b>${esc(l.suburb)}</b>${l.drive?' · '+esc(l.drive):''}</div>
+      ${l.complex?`<div class="lsub" style="color:var(--mut)">${esc(l.complex)}</div>`:''}
+      <div class="specs">
+        <span>${ic('bed')}<b>${l.beds}</b> bed</span><span>${ic('bath')}<b>${l.baths}</b> bath</span>
+        ${l.size?`<span>${ic('ruler')}<b>${l.size}</b> m²</span>`:''}${rm2?`<span>${fmt0(rm2)}/m²</span>`:''}
+      </div>
+      ${l.notes?`<div class="lsub" style="color:var(--brass-d)">${esc(l.notes)}</div>`:''}
+      ${cost?`<div class="cash">
+        <div class="row"><span>Est. rent</span><b>${fmt(l.estRent)}</b></div>
+        <div class="row"><span>Est. running cost</span><span>${fmt(cost.total)}</span></div>
+        <div class="row net ${net>=0?'pos':'neg'}"><span>Net / month</span><span>${net>=0?'+':''}${fmt(net)}</span></div></div>`:''}
+      <div class="arearow">
+        <button class="pill ${saf?saf.c:''}" onclick="cycleSafety('${l.id}')">${ic('shield')} ${saf?saf.t:'Safety?'}</button>
+        <button class="pill ${dem?dem.c:''}" onclick="cycleDemand('${l.id}')">${ic('trend')} ${dem?dem.t:'Demand?'}</button>
+        <button class="pill" onclick="editAreaNote('${l.id}')">${ic('note')} Notes</button>
+      </div>
+      ${l.areaNote?`<div class="anote">${esc(l.areaNote)}</div>`:''}
+      <div class="lactions">
+        <button class="act ${l.status==='shortlist'?'on':'p'}" onclick="toggleShort('${l.id}')">${ic('star')} ${l.status==='shortlist'?'Shortlisted':'Shortlist'}</button>
+        ${l.url?`<a class="act photos" href="${esc(l.url)}" target="_blank" rel="noopener">${ic('camera')} Photos &amp; details</a>`:''}
+        <button class="act" onclick="waShare('${l.id}')">${ic('share')} Send</button>
+      </div>
+      <div class="agentblock">
+        <div class="agenthd">${ic('users')} ${l.agentName?esc(l.agentName)+(l.agency?' · '+esc(l.agency):'')+' — agent':'Contact agent'}</div>
+        <div class="lactions">
+          ${l.agentPhone?`<a class="act" href="tel:${esc(l.agentPhone.replace(/\s/g,''))}">${ic('phone')} Call</a>`:''}
+          ${l.agentPhone?`<button class="act wa" onclick="waAgent('${l.id}')">${ic('wa')} WhatsApp</button>`:''}
+          ${l.agentEmail?`<button class="act" onclick="emailAgent('${l.id}')">${ic('mail')} Email</button>`:''}
+          <button class="act" onclick="editAgent('${l.id}')">${(l.agentPhone||l.agentEmail)?ic('note')+' Edit':ic('plus')+' Add agent contact'}</button>
+        </div>
+        ${!(l.agentPhone||l.agentEmail)?`<div class="hint">The listing page (<b>Photos &amp; details</b>) shows the agent’s own Call/WhatsApp buttons. Save their number/email here too, and you can fire off your pre-written viewing request in one tap.</div>`:''}
+      </div>
+      <div class="lactions">
+        <div class="visit">
+          <button class="yes ${l.visit==='yes'?'on':''}" onclick="setVisit('${l.id}','yes')">Visited · Yes</button>
+          <button class="maybe ${l.visit==='maybe'?'on':''}" onclick="setVisit('${l.id}','maybe')">Maybe</button>
+          <button class="no ${l.visit==='no'?'on':''}" onclick="setVisit('${l.id}','no')">No</button>
+        </div>
+        <button class="act" onclick="editRent('${l.id}')">Edit rent</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- SHORTLIST ---------- */
+function viewShortlist(){
+  const list=state.listings.filter(l=>l.status==='shortlist');
+  const head=`<div class="sectionhead"><div><h2>Shortlist</h2><div class="sub">Grouped by your visit verdict</div></div><div class="spacer"></div>${list.length?sortControl()+' '+exportBar('shortlist'):''}</div>`;
+  if(!list.length)return head+`<div class="empty">${ic('star')}Nothing shortlisted yet. Tap Shortlist on any listing.</div>`;
+  const bv=v=>sortListings(list.filter(l=>l.visit===v));
+  const sec=(t,a)=>a.length?`<div class="sectionhead" style="margin-top:6px"><h3 class="serif" style="font-size:17px">${t} <span class="tag">${a.length}</span></h3></div><div class="grid">${a.map(listingCard).join('')}</div>`:'';
+  return head+sec('Visited — Yes',bv('yes'))+sec('Visited — Maybe',bv('maybe'))+sec('Not visited yet',bv(''))+sec('Visited — No',bv('no'));
+}
+
+/* ---------- COMPARE ---------- */
+function viewCompare(){
+  const list=state.listings.filter(l=>l.status==='shortlist');
+  const head=`<div class="sectionhead"><div><h2>Compare shortlist</h2><div class="sub">Best value in each row is highlighted</div></div><div class="spacer"></div>${list.length>=2?exportBar('compare'):''}</div>`;
+  if(list.length<2)return head+`<div class="empty">${ic('scale')}Shortlist at least two places to compare them side by side.</div>`;
+  const rows=list.map(l=>{const c=l.price?estCosts(l.price,l.estRent):null;return{l,rm2:(l.price&&l.size)?Math.round(l.price/l.size):null,run:c?c.total:null,net:c?(l.estRent-c.total):null};});
+  const minI=f=>{let bi=-1,bv=Infinity;rows.forEach((r,i)=>{const v=f(r);if(v!=null&&v<bv){bv=v;bi=i;}});return bi;};
+  const maxI=f=>{let bi=-1,bv=-Infinity;rows.forEach((r,i)=>{const v=f(r);if(v!=null&&v>bv){bv=v;bi=i;}});return bi;};
+  const bP=minI(r=>r.l.price),bR=minI(r=>r.rm2),bRent=maxI(r=>r.l.estRent),bRun=minI(r=>r.run),bNet=maxI(r=>r.net),bS=maxI(r=>r.l.size);
+  const cell=(h,b)=>`<td class="${b?'best':''}">${h}</td>`;
+  const row=(lab,fn,bi)=>`<tr><td class="lab">${lab}</td>${rows.map((r,i)=>cell(fn(r),i===bi)).join('')}</tr>`;
+  const vt={yes:'✓ Yes',maybe:'~ Maybe',no:'✗ No','':'—'};
+  const header=`<tr><th class="lab">Property</th>${rows.map(r=>`<th><div class="colprice">${r.l.price!=null?fmt(r.l.price):'Price?'}</div><div class="lsub" style="white-space:normal;max-width:160px">${esc(r.l.suburb)}</div><div class="lsub" style="color:var(--mut)">${CAMPUSES.find(c=>c.id===r.l.campus).name}${r.l.radius==='ext'?' · ~30 min':''}</div></th>`).join('')}</tr>`;
+  return head+`<div class="cmpwrap"><table class="cmp"><thead>${header}</thead><tbody>
+    ${row('Price',r=>r.l.price!=null?fmt(r.l.price):'—',bP)}
+    ${row('Beds / baths',r=>r.l.beds+' / '+r.l.baths,-1)}
+    ${row('Size',r=>r.l.size?r.l.size+' m²':'—',bS)}
+    ${row('Price / m²',r=>r.rm2?fmt0(r.rm2):'—',bR)}
+    ${row('Garden',r=>r.l.garden?'Yes':'—',-1)}
+    ${row('vs area',r=>priceBadge(r.l).txt,-1)}
+    ${row('Est. rent / mo',r=>fmt(r.l.estRent),bRent)}
+    ${row('Running cost',r=>r.run!=null?fmt(r.run):'—',bRun)}
+    ${row('Net / month',r=>r.net!=null?`<b class="${r.net>=0?'pos':'neg'}">${r.net>=0?'+':''}${fmt(r.net)}</b>`:'—',bNet)}
+    ${row('Safety',r=>r.l.safety?SAFE[r.l.safety].t:'—',-1)}
+    ${row('Demand',r=>r.l.demand?DEM[r.l.demand].t:'—',-1)}
+    ${row('Visit',r=>vt[r.l.visit||''],-1)}
+    ${row('Link',r=>r.l.url?`<a href="${esc(r.l.url)}" target="_blank" rel="noopener">Open</a>`:'—',-1)}
+  </tbody></table></div>
+  <div class="hint" style="margin-top:10px">Highlighted = best in that row. “Net / month” uses your Finances assumptions.</div>`;
+}
+
+/* ---------- OWNED ---------- */
+function ownedMonthly(o){const inc=(o.income||[]).reduce((s,i)=>s+(+i.amount||0),0);const exp=(o.expenses||[]).reduce((s,i)=>s+(+i.amount||0),0);const plan=estCosts(o.purchasePrice||0,o.rent||0);return{inc,exp,planExpense:plan.total,net:((o.rent||0)-plan.total),ledgerNet:inc-exp};}
+function viewOwned(){
+  const head=`<div class="sectionhead"><div><h2>Owned properties</h2><div class="sub">Maintenance · income · expenses</div></div><div class="spacer"></div>${state.owned.length?exportBar('owned'):''}<button class="btn mini" onclick="addOwned()">${ic('plus')} Add</button></div>`;
+  if(!state.owned.length)return head+`<div class="empty">${ic('home')}No purchased properties yet. Add one, or promote a shortlisted place.</div>`;
+  return head+state.owned.map(ownedCard).join('');
+}
+function ownedCard(o){
+  const st=ownedTab[o.id]||'overview',m=ownedMonthly(o);
+  const tb=(k,l)=>`<button class="${st===k?'on':''}" onclick="ownedTab['${o.id}']='${k}';render()">${l}</button>`;
+  let body= st==='overview'?ownedOverview(o,m): st==='maint'?ownedMaint(o): ownedLedger(o,st==='income'?'income':'expenses');
+  const open=(o.maintenance||[]).filter(t=>!t.done).length;
+  return `<div class="panel">
+    <div class="ownedhead"><div><h3 class="serif">${esc(o.name||'Untitled unit')}</h3><div class="desc">${esc(o.suburb||'')}${o.purchasePrice?' · bought '+fmt(o.purchasePrice):''}</div></div>
+      <span class="badge ${m.net>=0?'b-cheap':'b-exp'}">${m.net>=0?'Covers costs +':'Shortfall '}${fmt0(Math.abs(m.net))}/mo</span></div>
+    <div class="sub-tabs">${tb('overview','Overview')}${tb('maint','Maintenance'+(open?` (${open})`:''))}${tb('income','Income')}${tb('expenses','Expenses')}</div>
+    ${body}
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost mini" onclick="editOwned('${o.id}')">Edit details</button><button class="btn danger mini" onclick="delOwned('${o.id}')">Remove</button></div>
+  </div>`;
+}
+function ownedOverview(o,m){const plan=estCosts(o.purchasePrice||0,o.rent||0);return `<div class="frow">
+   <div class="cash"><div class="row"><span>Monthly rent (target)</span><b>${fmt(o.rent)}</b></div>
+     <div class="row"><span>Est. bond instalment</span><span>${fmt(plan.bond)}</span></div>
+     <div class="row"><span>Levy / rates / insurance</span><span>${fmt(plan.levy+plan.rates+plan.insurance)}</span></div>
+     <div class="row"><span>Maint + mgmt + vacancy</span><span>${fmt(plan.maint+plan.mgmt+plan.vac)}</span></div>
+     <div class="row net ${m.net>=0?'pos':'neg'}"><span>Planned net / month</span><span>${m.net>=0?'+':''}${fmt(m.net)}</span></div></div>
+   <div class="cash"><div class="row"><span>Income logged</span><b class="pos">${fmt(m.inc)}</b></div>
+     <div class="row"><span>Expenses logged</span><b class="neg">${fmt(m.exp)}</b></div>
+     <div class="row net ${m.ledgerNet>=0?'pos':'neg'}"><span>Actual net logged</span><span>${m.ledgerNet>=0?'+':''}${fmt(m.ledgerNet)}</span></div>
+     <div class="hint">Rent is competitive when it covers most running costs — aim planned net ≥ 0.</div></div></div>`;}
+function ownedMaint(o){const tasks=o.maintenance||[];
+  const rows=tasks.map(t=>`<tr><td><input type="checkbox" ${t.done?'checked':''} onchange="toggleTask('${o.id}','${t.id}')" style="width:auto"></td>
+    <td ${t.done?'style="text-decoration:line-through;color:var(--mut)"':''}>${esc(t.title)}<div class="hint">${t.due?'Due '+t.due:''}${t.cat?' · '+t.cat:''}</div></td>
+    <td class="num">${t.cost?fmt(t.cost):'—'}</td><td><button class="del" onclick="delTask('${o.id}','${t.id}')">×</button></td></tr>`).join('');
+  return `${tasks.length?`<table class="led"><thead><tr><th></th><th>Task</th><th class="num">Est. cost</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<div class="hint" style="margin-bottom:10px">No maintenance planned yet.</div>`}
+   <div class="frow3" style="margin-top:12px"><div class="field" style="grid-column:1/3;margin:0"><label>Task</label><input type="text" id="mt-${o.id}" placeholder="e.g. Service geyser"></div><div class="field" style="margin:0"><label>Est. cost</label><input type="number" id="mc-${o.id}" placeholder="0"></div></div>
+   <div class="frow" style="margin-top:8px"><div class="field" style="margin:0"><label>Due date</label><input type="date" id="md-${o.id}"></div><div class="field" style="margin:0"><label>Category</label><select id="mcat-${o.id}"><option>Routine service</option><option>Repair</option><option>Compliance</option><option>Upgrade</option><option>Emergency</option></select></div></div>
+   <button class="btn mini" style="margin-top:10px" onclick="addTask('${o.id}')">${ic('plus')} Add task</button>`;}
+function ownedLedger(o,kind){const items=o[kind]||[],cats=kind==='income'?INCOME_CATEGORIES:EXPENSE_CATEGORIES,total=items.reduce((s,i)=>s+(+i.amount||0),0);
+  const rows=items.slice().reverse().map(i=>`<tr><td>${i.date||''}</td><td>${esc(i.cat)}${i.note?'<div class="hint">'+esc(i.note)+'</div>':''}</td><td class="num ${kind==='income'?'pos':'neg'}">${fmt(i.amount)}</td><td><button class="del" onclick="delLedger('${o.id}','${kind}','${i.id}')">×</button></td></tr>`).join('');
+  return `${items.length?`<table class="led"><thead><tr><th>Date</th><th>${kind==='income'?'Source':'Category'}</th><th class="num">Amount</th><th></th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td></td><td><b>Total</b></td><td class="num"><b class="${kind==='income'?'pos':'neg'}">${fmt(total)}</b></td><td></td></tr></tfoot></table>`:`<div class="hint" style="margin-bottom:10px">No ${kind} entries yet.</div>`}
+   <div class="frow3" style="margin-top:12px"><div class="field" style="margin:0"><label>Date</label><input type="date" id="ld-${kind}-${o.id}"></div><div class="field" style="margin:0"><label>${kind==='income'?'Source':'Category'}</label><select id="lc-${kind}-${o.id}">${cats.map(c=>`<option>${c}</option>`).join('')}</select></div><div class="field" style="margin:0"><label>Amount</label><input type="number" id="la-${kind}-${o.id}" placeholder="0"></div></div>
+   <div class="field" style="margin-top:8px"><label>Note (optional)</label><input type="text" id="ln-${kind}-${o.id}" placeholder="Reference / detail"></div>
+   <button class="btn mini" onclick="addLedger('${o.id}','${kind}')">${ic('plus')} Add ${kind==='income'?'income':'expense'}</button>`;}
+
+/* ---------- FINANCES ---------- */
+function viewFinances(){
+  const s=state.settings;let inc=0,exp=0;state.owned.forEach(o=>{inc+=(o.income||[]).reduce((a,i)=>a+(+i.amount||0),0);exp+=(o.expenses||[]).reduce((a,i)=>a+(+i.amount||0),0);});
+  let planNet=0;state.owned.forEach(o=>planNet+=ownedMonthly(o).net);
+  const num=(l,k,v)=>`<div class="field" style="margin:0"><label>${l}</label><input type="number" step="any" id="set-${k}" value="${v}"></div>`;
+  return `<div class="sectionhead"><div><h2>Finances</h2><div class="sub">Assumptions, roll-up &amp; backups</div></div><div class="spacer"></div>${exportBar('finances')}</div>
+   <div class="panel"><h3>${ic('users')} Live sync with your partner</h3>
+     <div class="desc">Both devices see the same shortlist, notes &amp; finances in real time, using your own free Firebase project (data stays in your account). Optional — leave it off to keep everything on-device.</div>
+     <div class="cash" style="margin-bottom:10px"><div class="row"><span>Status</span><b id="syncStatus">${sync&&sync.connected?('Connected · space “'+esc(sync.space)+'”'):'Not connected'}</b></div></div>
+     <div class="field"><label>1 · Firebase config (paste from your project)</label><textarea id="sync-config" rows="5" placeholder='{ "apiKey": "…", "projectId": "…", "appId": "…" }'>${esc(syncSavedConfigText())}</textarea></div>
+     <div class="field"><label>2 · Shared space code (both of you type the same word)</label><input type="text" id="sync-space" value="${esc((syncCfgLoad()||{}).space||'')}" placeholder="e.g. frank-and-anke"></div>
+     <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn mini" onclick="syncConnectUI()">Connect &amp; sync</button><button class="btn ghost mini" onclick="syncDisconnectUI()">Disconnect</button></div>
+     <details class="apkbox" style="margin-top:10px"><summary>How to get the Firebase config (about 2 minutes, free)</summary>
+       <div class="hint" style="margin-top:6px">
+         1) Open <b>console.firebase.google.com</b> → <b>Add project</b> (any name, you can skip Analytics).<br>
+         2) Build → <b>Firestore Database</b> → <b>Create database</b>.<br>
+         3) Project settings (⚙) → <b>Your apps</b> → tap the web icon <b>&lt;/&gt;</b> → register an app → copy the whole <b>firebaseConfig</b> object and paste it above.<br>
+         4) Firestore → <b>Rules</b> → paste this and Publish:
+         <code style="display:block;white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:6px">rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    match /spaces/{space} { allow read, write: if true; }
+  }
+}</code>
+         5) Give your wife the app link + the <b>same space code</b>; she pastes the same config and code. You're now in sync.<br>
+         <b>Note:</b> a Firebase web config is safe to share (it's public by design). Choose a hard-to-guess space code — this is a private family tool, not bank-grade security.
+       </div>
+     </details>
+   </div>
+   <div class="panel"><h3>${ic('wallet')} Portfolio roll-up</h3>
+     <div class="frow3" style="margin-top:10px">
+       <div class="cash"><div class="hint">Income logged</div><div class="big pos">${fmt(inc)}</div></div>
+       <div class="cash"><div class="hint">Expenses logged</div><div class="big neg">${fmt(exp)}</div></div>
+       <div class="cash"><div class="hint">Planned net / month</div><div class="big ${planNet>=0?'pos':'neg'}">${planNet>=0?'+':''}${fmt(planNet)}</div></div></div>
+     <div class="hint" style="margin-top:8px">The <b>Export</b> button here downloads every income &amp; expense transaction across all units — handy for your accountant / SARS.</div></div>
+   <div class="panel"><h3>${ic('calc')} Financial assumptions</h3>
+     <div class="desc">These drive every “net per month” estimate. Tune to your bank offer and body-corporate figures.</div>
+     <div class="frow3">${num('Max budget (R)','budget',s.budget)}${num('Deposit %','deposit',s.deposit)}${num('Interest rate %','interest',s.interest)}</div>
+     <div class="frow3" style="margin-top:10px">${num('Bond term (yrs)','term',s.term)}${num('Levy / mo','levy',s.levy)}${num('Rates / mo','rates',s.rates)}</div>
+     <div class="frow3" style="margin-top:10px">${num('Insurance / mo','insurance',s.insurance)}${num('Maintenance % / yr','maintPct',s.maintPct)}${num('Mgmt agent % of rent','mgmtPct',s.mgmtPct)}</div>
+     <div class="frow3" style="margin-top:10px">${num('Vacancy % of rent','vacancyPct',s.vacancyPct)}<div></div><div></div></div>
+     <button class="btn mini" style="margin-top:12px" onclick="saveSettings()">Save assumptions</button>
+     <div class="hint" style="margin-top:8px"><b>Max budget</b> drives the “Under …” filter and the over-budget flags on every campus. Not financial advice — in SA only the <b>interest</b> part of a bond is tax-deductible against rental income, not the capital.</div></div>
+   <div class="panel"><h3>${ic('camera')} Listing previews</h3>
+     <div class="desc">Show a photo pulled from each listing’s web page. Turn off to save data or when offline — the illustrated cover shows instead.</div>
+     <label style="display:flex;align-items:center;gap:9px;font-size:14px;color:var(--ink);font-weight:600"><input type="checkbox" style="width:auto" ${s.previews!==false?'checked':''} onchange="togglePreviews()"> Show web previews of listings</label>
+     <div class="hint" style="margin-top:8px">Previews load from each listing link, so they need internet and can take a moment. Inside the in-chat preview they may be blocked — they appear once you open the app in a browser or install it.</div>
+   </div>
+   <div class="panel"><h3>${ic('users')} Viewing-request message</h3>
+     <div class="desc">Used when you WhatsApp or email an agent from a listing. Tokens auto-fill: <b>{title} {suburb} {price} {url}</b>.</div>
+     <div class="field"><label>Your name (sign-off)</label><input type="text" id="set-contactName" value="${esc(s.contactName||'')}" placeholder="e.g. Frank &amp; wife"></div>
+     <div class="field"><label>Message template</label><textarea id="set-enquiry" rows="4">${esc(s.enquiry||DEFAULT_ENQUIRY)}</textarea></div>
+     <button class="btn mini" onclick="saveEnquiry()">Save message</button>
+   </div>
+   <div class="panel"><h3>${ic('download')} Back up data</h3>
+     <div class="desc">Your data lives on this device. Export a JSON copy to keep it safe or move it when this becomes a full app.</div>
+     <div style="display:flex;gap:8px;flex-wrap:wrap">
+       <button class="btn mini" onclick="exportJSON()">Export JSON</button>
+       <label class="btn ghost mini" style="display:inline-block">Import JSON<input type="file" accept="application/json" style="display:none" onchange="importJSON(event)"></label>
+       <button class="btn ghost mini" onclick="restoreSeed()">Restore sample listings</button>
+       <button class="btn danger mini" onclick="wipe()">Clear everything</button></div></div>`;
+}
+
+/* ---------- CALCULATOR ---------- */
+function viewCalc(){
+  const s=state.settings;
+  return `<div class="sectionhead"><div><h2>Bond &amp; affordability calculator</h2><div class="sub">Repayments, upfront cash &amp; what you can afford</div></div><div class="spacer"></div>${exportBar('calc')}</div>
+   <div class="panel"><h3>${ic('wallet')} 1 · What will a place cost?</h3><div class="desc">Enter a purchase price and your bond terms.</div>
+     <div class="frow3"><div class="field" style="margin:0"><label>Purchase price (R)</label><input type="number" id="c-price" value="650000" oninput="calcCompute()"></div><div class="field" style="margin:0"><label>Deposit %</label><input type="number" id="c-dep" value="${s.deposit}" oninput="calcCompute()"></div><div class="field" style="margin:0"><label>Interest %</label><input type="number" step="any" id="c-int" value="${s.interest}" oninput="calcCompute()"></div></div>
+     <div class="frow3" style="margin-top:10px"><div class="field" style="margin:0"><label>Term (years)</label><input type="number" id="c-term" value="${s.term}" oninput="calcCompute()"></div><div class="field" style="margin:0"><label>Est. rent / mo (R)</label><input type="number" id="c-rent" value="7000" oninput="calcCompute()"></div><div class="field" style="margin:0"><label>Upfront legal/bond costs (R)</label><input type="number" id="c-upfront" value="38000" oninput="calcCompute()"></div></div>
+     <div class="frow" style="margin-top:12px">
+       <div class="cash"><div class="row"><span>Loan amount</span><b id="o-loan">—</b></div><div class="row"><span>Monthly bond instalment</span><b id="o-inst">—</b></div><div class="row"><span>Total interest over term</span><span id="o-int">—</span></div><div class="row"><span>Total repaid over term</span><span id="o-total">—</span></div><div class="row net"><span>Cash needed upfront</span><span id="o-cash">—</span></div></div>
+       <div class="cash"><div class="row"><span>Est. running cost / mo</span><span id="o-run">—</span></div><div class="row"><span>Est. rent / mo</span><span id="c-rent-echo">—</span></div><div class="hint" style="margin:6px 0">Net after bond, levy, rates, insurance, maintenance, mgmt &amp; vacancy:</div><div id="o-net" class="big">—</div></div></div>
+     <div class="hint" style="margin-top:8px">No transfer duty under R1.1m (2025/26), so on these prices you pay bond-registration &amp; transfer-attorney fees only — get a real quote.</div></div>
+   <div class="panel"><h3>${ic('trend')} 2 · What can you afford?</h3><div class="desc">A guide: banks typically allow ~30% of gross monthly income toward a home loan. Uses the deposit, interest &amp; term above.</div>
+     <div class="frow"><div class="field" style="margin:0"><label>Gross household income / mo (R)</label><input type="number" id="c-gross" value="35000" oninput="calcCompute()"></div><div class="field" style="margin:0"><label>Other monthly debt (R)</label><input type="number" id="c-debts" value="0" oninput="calcCompute()"></div></div>
+     <div class="cash" style="margin-top:12px"><div class="row"><span>Max affordable instalment (≈30% − debts)</span><b id="o-maxinst">—</b></div><div class="row"><span>Max loan you'd qualify for</span><span id="o-maxloan">—</span></div><div class="row net pos"><span>Max purchase price (at this deposit)</span><span id="o-maxprice">—</span></div></div>
+     <div class="hint" style="margin-top:8px">Indicative only — the bank does its own affordability &amp; credit assessment. Not financial advice.</div></div>`;
+}
+function calcCompute(){
+  const g=id=>document.getElementById(id);if(!g('c-price'))return;
+  const price=+g('c-price').value||0,dep=+g('c-dep').value||0,rate=+g('c-int').value||0,term=+g('c-term').value||0,rent=+g('c-rent').value||0,up=+g('c-upfront').value||0;
+  const loan=Math.max(0,price*(1-dep/100)),r=(rate/100)/12,n=term*12;
+  const inst=(n<=0)?0:(r?loan*r/(1-Math.pow(1+r,-n)):loan/n);
+  g('o-loan').textContent=fmt(loan);g('o-inst').textContent=fmt(inst);g('o-int').textContent=fmt(inst*n-loan);g('o-total').textContent=fmt(inst*n);g('o-cash').textContent=fmt(price*(dep/100)+up);g('c-rent-echo').textContent=fmt(rent);
+  const s=state.settings,maint=price*(s.maintPct/100)/12,mgmt=rent*(s.mgmtPct/100),vac=rent*(s.vacancyPct/100);
+  const running=inst+(+s.levy)+(+s.rates)+(+s.insurance)+maint+mgmt+vac,net=rent-running;
+  g('o-run').textContent=fmt(running);const ne=g('o-net');ne.textContent=(net>=0?'+':'')+fmt(net);ne.className='big '+(net>=0?'pos':'neg');
+  const gross=+g('c-gross').value||0,debts=+g('c-debts').value||0,maxInst=Math.max(0,0.30*gross-debts);
+  const maxLoan=(n<=0)?0:(r?maxInst*(1-Math.pow(1+r,-n))/r:maxInst*n),maxPrice=dep<100?maxLoan/(1-dep/100):maxLoan;
+  g('o-maxinst').textContent=fmt(maxInst);g('o-maxloan').textContent=fmt(maxLoan);g('o-maxprice').textContent=fmt(maxPrice);
+}
+
+/* ---------- TENANTS ---------- */
+function viewTenants(){
+  const head=`<div class="sectionhead"><div><h2>Tenants &amp; agreements</h2><div class="sub">Leases, deposits &amp; compliance</div></div><div class="spacer"></div>${state.tenants.length?exportBar('tenants'):''}<button class="btn mini" onclick="addTenant()">${ic('plus')} Add</button></div>`;
+  if(!state.tenants.length)return head+`<div class="empty">${ic('users')}No tenants yet. Add a tenancy to track the lease, deposit and payment status.</div>`;
+  return head+state.tenants.map(tenantCard).join('');
+}
+function tenantCard(t){const chk=(t.checklist||[]).filter(Boolean).length;
+  return `<div class="panel"><div class="ownedhead"><div><h3 class="serif">${esc(t.name||'Tenant')}</h3><div class="desc">${esc(t.unit||'')}${t.rent?' · rent '+fmt(t.rent):''}${t.escalation?' · '+t.escalation+'% escalation':''}</div></div><span class="badge ${t.status==='Paid'?'b-cheap':t.status==='Arrears'?'b-exp':'b-sim'}">${t.status||'—'}</span></div>
+    <div class="frow" style="margin-top:8px"><div class="kv"><span>Lease</span><b>${t.start||'?'} → ${t.end||'?'}</b></div><div class="kv"><span>Deposit</span><b>${t.deposit?fmt(t.deposit):'—'}${t.depositWhere?' ('+esc(t.depositWhere)+')':''}</b></div></div>
+    ${t.notes?`<div class="hint">${esc(t.notes)}</div>`:''}
+    <div class="sub-tabs" style="margin-top:10px"><button class="on">Lease compliance ${chk}/${SEED_TENANT_CHECKLIST.length}</button></div>
+    <div class="checklist">${SEED_TENANT_CHECKLIST.map((item,i)=>`<label><input type="checkbox" ${(t.checklist&&t.checklist[i])?'checked':''} onchange="toggleTenantChk('${t.id}',${i})"> ${item}</label>`).join('')}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn ghost mini" onclick="editTenant('${t.id}')">Edit</button><button class="btn ghost mini" onclick="cycleStatus('${t.id}')">Status: ${t.status||'set'}</button><button class="btn danger mini" onclick="delTenant('${t.id}')">Remove</button></div></div>`;}
+
+/* ---------- ADD ---------- */
+function viewAdd(){
+  const subs=[...new Set([].concat(...Object.values(state.prefSuburbs||{}),state.listings.map(l=>l.suburb)).filter(Boolean))].sort();
+  return `<div class="sectionhead"><div><h2>Add a listing</h2><div class="sub">Capture a new find (or paste one from your weekly search)</div></div></div>
+   <div class="panel">
+     <datalist id="suburbs">${subs.map(s=>'<option value="'+esc(s)+'">').join('')}</datalist>
+     <div class="frow"><div class="field"><label>Campus</label><select id="a-campus">${CAMPUSES.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}</select></div><div class="field"><label>Suburb / area</label><input type="text" id="a-suburb" list="suburbs" placeholder="e.g. Die Bult"></div></div>
+     <div class="field"><label>Title / short description</label><input type="text" id="a-title" placeholder="e.g. 2-bed with garden, secure complex"></div>
+     <div class="frow3"><div class="field"><label>Price (R)</label><input type="number" id="a-price" placeholder="695000"></div><div class="field"><label>Bedrooms</label><input type="number" id="a-beds" value="2"></div><div class="field"><label>Bathrooms</label><input type="number" step="0.5" id="a-baths" value="1"></div></div>
+     <div class="frow3"><div class="field"><label>Size m²</label><input type="number" id="a-size" placeholder="60"></div><div class="field"><label>Est. rent /mo</label><input type="number" id="a-rent" placeholder="7500"></div><div class="field"><label>Garden/patio?</label><select id="a-garden"><option value="false">No</option><option value="true">Yes</option></select></div></div>
+     <div class="frow"><div class="field"><label>Radius</label><select id="a-radius"><option value="core">Within ~15 km</option><option value="ext">~30-min radius</option></select></div><div class="field"><label>Distance to campus</label><input type="text" id="a-drive" placeholder="e.g. ~5 min to NWU"></div></div>
+     <div class="field"><label>Complex / notes</label><input type="text" id="a-complex" placeholder="Complex name, security, distance"></div>
+     <div class="field"><label>Photo URL (optional)</label><input type="text" id="a-image" placeholder="Paste the main listing photo URL"></div>
+     <div class="field"><label>Listing URL</label><input type="text" id="a-url" placeholder="https://www.property24.com/..."></div>
+     <div class="frow3"><div class="field"><label>Agent name</label><input type="text" id="a-agentName" placeholder="e.g. Jandré"></div><div class="field"><label>Agent phone</label><input type="text" id="a-agentPhone" placeholder="082 123 4567"></div><div class="field"><label>Agent email</label><input type="text" id="a-agentEmail" placeholder="agent@agency.co.za"></div></div>
+     <button class="btn" onclick="addListing()">${ic('plus')} Add listing</button>
+   </div>
+   <div class="panel"><h3>${ic('clock')} Keep it fresh automatically</h3>
+     <div class="desc">This app can’t scrape the portals on its own, but a Claude <b>Scheduled task</b> can do the searching weekly. Copy this prompt, then paste the results here.</div>
+     <textarea id="schedprompt" rows="8" readonly style="font-size:12.5px">${esc(schedPrompt())}</textarea>
+     <button class="btn ghost mini" style="margin-top:8px" onclick="copySched()">Copy prompt</button></div>`;
+}
+function schedPrompt(){
+  const areas=cid=>{const p=prefsFor(cid);return p.length?p.join(', '):CAMPUSES.find(c=>c.id===cid).areas.replace(/ · /g,', ');};
+  return `Search Property24 and Private Property for NEW listings in the last 7 days:
+2-bed apartments/townhouses for sale UNDER R${budgetVal().toLocaleString('en-ZA')}, secure complexes, gardens preferred. Prioritise FAMILY-FRIENDLY units (garden / residential estate / full title) that resell beyond the student market. Focus suburbs (widen ~30 min if stock is thin):
+1) NWU Potchefstroom — ${areas('potch')}
+2) Stellenbosch University — ${areas('stel')}${prefsFor('stel').length?'':'; then Kraaifontein, Kuils River, Eersterivier'}
+3) University of Pretoria (Hatfield) — ${areas('pta')}
+4) Sol-Tech/Akademia Centurion — ${areas('sol')}
+For each: price, suburb, beds/baths, size, garden y/n, complex, drive time, and the listing link.
+Flag cheaper / similar / more expensive vs other 2-beds in that suburb, and estimate a market rent.`;}
+
+/* ============================================================ EXPORTS ============================================================ */
+const LISTING_COLS=[{key:'campus',label:'Campus'},{key:'suburb',label:'Suburb'},{key:'title',label:'Description'},{key:'price',label:'Price (R)'},{key:'beds',label:'Beds'},{key:'baths',label:'Baths'},{key:'size',label:'Size m²'},{key:'rm2',label:'R/m²'},{key:'garden',label:'Garden'},{key:'drive',label:'Distance'},{key:'radius',label:'Radius'},{key:'estRent',label:'Est rent (R)'},{key:'run',label:'Running cost (R)'},{key:'net',label:'Net/mo (R)'},{key:'vsArea',label:'vs area'},{key:'visit',label:'Visit'},{key:'safety',label:'Safety'},{key:'demand',label:'Demand'},{key:'areaNote',label:'Area notes'},{key:'agentName',label:'Agent'},{key:'agentPhone',label:'Agent phone'},{key:'agentEmail',label:'Agent email'},{key:'source',label:'Source'},{key:'url',label:'Link'}];
+function listingRow(l){const c=l.price?estCosts(l.price,l.estRent):null;return {campus:CAMPUSES.find(x=>x.id===l.campus).name,suburb:l.suburb,title:l.title,price:l.price??'',beds:l.beds,baths:l.baths,size:l.size??'',rm2:(l.price&&l.size)?Math.round(l.price/l.size):'',garden:l.garden?'Yes':'No',drive:l.drive||'',radius:l.radius==='ext'?'~30 min':'≤15 km',estRent:l.estRent||'',run:c?Math.round(c.total):'',net:c?Math.round(l.estRent-c.total):'',vsArea:priceBadge(l).txt,visit:l.visit||'',safety:l.safety?SAFE[l.safety].t:'',demand:l.demand?DEM[l.demand].t:'',areaNote:l.areaNote||'',agentName:l.agentName||'',agentPhone:l.agentPhone||'',agentEmail:l.agentEmail||'',source:l.source||'',url:l.url||''};}
+const OWNED_COLS=[{key:'name',label:'Property'},{key:'suburb',label:'Suburb'},{key:'purchasePrice',label:'Purchase (R)'},{key:'rent',label:'Rent (R)'},{key:'planNet',label:'Planned net/mo (R)'},{key:'inc',label:'Income logged (R)'},{key:'exp',label:'Expenses logged (R)'},{key:'open',label:'Open tasks'}];
+function ownedRow(o){const m=ownedMonthly(o);return {name:o.name,suburb:o.suburb,purchasePrice:o.purchasePrice||'',rent:o.rent||'',planNet:Math.round(m.net),inc:Math.round(m.inc),exp:Math.round(m.exp),open:(o.maintenance||[]).filter(t=>!t.done).length};}
+const TENANT_COLS=[{key:'name',label:'Tenant'},{key:'unit',label:'Unit'},{key:'rent',label:'Rent (R)'},{key:'escalation',label:'Escalation %'},{key:'deposit',label:'Deposit (R)'},{key:'depositWhere',label:'Deposit held'},{key:'start',label:'Lease start'},{key:'end',label:'Lease end'},{key:'status',label:'Status'},{key:'compliance',label:'Compliance'},{key:'notes',label:'Notes'}];
+function tenantRow(t){return {name:t.name,unit:t.unit||'',rent:t.rent||'',escalation:t.escalation||'',deposit:t.deposit||'',depositWhere:t.depositWhere||'',start:t.start||'',end:t.end||'',status:t.status||'',compliance:((t.checklist||[]).filter(Boolean).length)+'/'+SEED_TENANT_CHECKLIST.length,notes:t.notes||''};}
+const TXN_COLS=[{key:'unit',label:'Property'},{key:'date',label:'Date'},{key:'type',label:'Type'},{key:'cat',label:'Category'},{key:'amount',label:'Amount (R)'},{key:'note',label:'Note'}];
+function txnRows(){const out=[];state.owned.forEach(o=>{(o.income||[]).forEach(i=>out.push({unit:o.name,date:i.date||'',type:'Income',cat:i.cat,amount:Math.round(+i.amount||0),note:i.note||''}));(o.expenses||[]).forEach(e=>out.push({unit:o.name,date:e.date||'',type:'Expense',cat:e.cat,amount:Math.round(+e.amount||0),note:e.note||''}));});return out.sort((a,b)=>String(a.date).localeCompare(String(b.date)));}
+function calcRows(){const g=id=>document.getElementById(id);if(!g('o-inst'))return [];const R=(m,v)=>({metric:m,value:v});return [R('Purchase price',g('c-price').value),R('Deposit %',g('c-dep').value),R('Interest %',g('c-int').value),R('Term (years)',g('c-term').value),R('Loan amount',g('o-loan').textContent),R('Monthly instalment',g('o-inst').textContent),R('Total interest',g('o-int').textContent),R('Total repaid',g('o-total').textContent),R('Cash upfront',g('o-cash').textContent),R('Est. running cost/mo',g('o-run').textContent),R('Net/mo',g('o-net').textContent),R('Max affordable instalment',g('o-maxinst').textContent),R('Max loan',g('o-maxloan').textContent),R('Max purchase price',g('o-maxprice').textContent)];}
+
+function doExport(scope,fmtType){
+  let title,columns,rows,fname;
+  if(scope.startsWith('campus:')){const cid=scope.split(':')[1],c=CAMPUSES.find(x=>x.id===cid);title=c.name+' listings';columns=LISTING_COLS;rows=state.listings.filter(l=>l.campus===cid).map(listingRow);fname='kampus-'+cid;}
+  else if(scope==='shortlist'||scope==='compare'){title=scope==='compare'?'Shortlist comparison':'Shortlist';columns=LISTING_COLS;rows=state.listings.filter(l=>l.status==='shortlist').map(listingRow);fname='kampus-shortlist';}
+  else if(scope==='owned'){title='Owned properties';columns=OWNED_COLS;rows=state.owned.map(ownedRow);fname='kampus-owned';}
+  else if(scope==='tenants'){title='Tenants & leases';columns=TENANT_COLS;rows=state.tenants.map(tenantRow);fname='kampus-tenants';}
+  else if(scope==='finances'){title='Income & expense transactions';columns=TXN_COLS;rows=txnRows();fname='kampus-transactions';}
+  else if(scope==='calc'){title='Bond calculation';columns=[{key:'metric',label:'Metric'},{key:'value',label:'Value'}];rows=calcRows();fname='kampus-calc';}
+  if(!rows||!rows.length){alert('Nothing to export here yet.');return;}
+  if(fmtType==='csv')toCSV(title,columns,rows,fname);else if(fmtType==='xlsx')toXLS(title,columns,rows,fname);else toPDF(title,columns,rows,fname);
+}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(a.href);},500);}
+function toCSV(title,columns,rows,fname){const q=v=>{v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};const lines=[columns.map(c=>q(c.label)).join(',')].concat(rows.map(r=>columns.map(c=>q(r[c.key])).join(',')));dl(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),fname+'-'+dateStr()+'.csv');}
+function toXLS(title,columns,rows,fname){const th='<tr>'+columns.map(c=>`<th style="background:#14231d;color:#fff;padding:6px;text-align:left">${esc(c.label)}</th>`).join('')+'</tr>';const tb=rows.map(r=>'<tr>'+columns.map(c=>`<td style="border:1px solid #ccc;padding:5px">${esc(r[c.key])}</td>`).join('')+'</tr>').join('');const html='<html><head><meta charset="utf-8"></head><body><h3>Kampus — '+esc(title)+'</h3><table border="1" style="border-collapse:collapse">'+th+tb+'</table></body></html>';dl(new Blob(['\ufeff'+html],{type:'application/vnd.ms-excel;charset=utf-8'}),fname+'-'+dateStr()+'.xls');}
+function toPDF(title,columns,rows,fname){
+  const J=window.jspdf&&window.jspdf.jsPDF;
+  if(J){const doc=new J({orientation:columns.length>6?'l':'p',unit:'pt',format:'a4'});
+    if(!doc.autoTable){printFallback(title,columns,rows);return;}
+    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(19,36,32);doc.text('Kampus — '+title,40,40);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(120);doc.text(new Date().toLocaleString('en-ZA'),40,56);
+    doc.autoTable({head:[columns.map(c=>c.label)],body:rows.map(r=>columns.map(c=>{const v=r[c.key];return v==null?'':String(v);})),startY:70,styles:{fontSize:8,cellPadding:4,overflow:'linebreak'},headStyles:{fillColor:[19,36,32],textColor:255},alternateRowStyles:{fillColor:[240,243,240]},margin:{left:40,right:40}});
+    doc.save(fname+'-'+dateStr()+'.pdf');
+  } else printFallback(title,columns,rows);
+}
+function printFallback(title,columns,rows){
+  const style='<style>body{font-family:Inter,Arial,sans-serif;color:#132420;padding:24px}h1{font-family:Georgia,serif;font-size:20px;margin:0 0 2px}small{color:#888}table{border-collapse:collapse;width:100%;font-size:11px;margin-top:12px}th,td{border:1px solid #cbd3cb;padding:6px 8px;text-align:left}th{background:#132420;color:#fff}tr:nth-child(even){background:#f2f5f2}</style>';
+  const th='<tr>'+columns.map(c=>`<th>${esc(c.label)}</th>`).join('')+'</tr>';
+  const tb=rows.map(r=>'<tr>'+columns.map(c=>`<td>${esc(r[c.key])}</td>`).join('')+'</tr>').join('');
+  const html='<html><head><meta charset="utf-8"><title>Kampus — '+esc(title)+'</title>'+style+'</head><body><h1>Kampus — '+esc(title)+'</h1><small>'+new Date().toLocaleString('en-ZA')+' — use your browser’s “Save as PDF”.</small><table><thead>'+th+'</thead><tbody>'+tb+'</tbody></table></body></html>';
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();setTimeout(()=>{w.focus();w.print();},400);return;}
+  const ifr=document.createElement('iframe');ifr.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(ifr);
+  const d=ifr.contentWindow.document;d.open();d.write(html);d.close();setTimeout(()=>{ifr.contentWindow.focus();ifr.contentWindow.print();setTimeout(()=>ifr.remove(),1500);},400);
+}
+
+/* ============================================================ ACTIONS ============================================================ */
+function find(id){return state.listings.find(l=>l.id===id);}
+function toggleShort(id){const l=find(id);l.status=l.status==='shortlist'?'new':'shortlist';persist();}
+function setVisit(id,v){const l=find(id);l.visit=(l.visit===v?'':v);persist();}
+function editRent(id){const l=find(id);const v=prompt('Estimated monthly rent (R):',l.estRent||'');if(v!==null){l.estRent=+v||0;persist();}}
+function setImage(id){const l=find(id);const v=prompt('Paste a photo URL for this listing:',l.image||'');if(v!==null){l.image=v.trim();persist();}}
+function cycleSafety(id){const l=find(id);const o=['','high','med','low'];l.safety=o[(o.indexOf(l.safety)+1)%o.length];persist();}
+function cycleDemand(id){const l=find(id);const o=['','high','med','low'];l.demand=o[(o.indexOf(l.demand)+1)%o.length];persist();}
+function editAreaNote(id){const l=find(id);const v=prompt('Area safety / rental-demand notes (jot findings after visiting):',l.areaNote||'');if(v!==null){l.areaNote=v;persist();}}
+function addPref(cid){const v=prompt('Add a focus suburb for '+CAMPUSES.find(c=>c.id===cid).name+':\n(Tip: use the official spelling, e.g. “Grimbeeck Park”, “Baillie Park”, “Van der Hoff Park”.)','');if(v&&v.trim()){state.prefSuburbs[cid]=prefsFor(cid).concat(v.trim());persist();}}
+function removePref(cid,i){state.prefSuburbs[cid]=prefsFor(cid).filter((_,x)=>x!==i);if(!state.prefSuburbs[cid].length)focusOnlyMap[cid]=false;persist();}
+function toggleFocus(cid){focusOnlyMap[cid]=!focusOnlyMap[cid];render();}
+const DEFAULT_ENQUIRY="Good day, I'm interested in your listing: {title} in {suburb}{price}. Is it still available, and could we arrange a viewing this week?\n{url}";
+function waNumber(p){let d=String(p||'').replace(/\D/g,'');if(!d)return'';if(d.startsWith('27'))return d;if(d.startsWith('0'))return '27'+d.slice(1);if(d.length===9)return '27'+d;return d;}
+function enquiryText(l){let t=(state.settings.enquiry||DEFAULT_ENQUIRY);const price=l.price!=null?(' (listed at '+fmt(l.price)+')'):'';t=t.replace(/{title}/g,l.title||'the property').replace(/{suburb}/g,l.suburb||'').replace(/{price}/g,price).replace(/{url}/g,l.url||'');const n=state.settings.contactName;if(n)t+='\n\n'+n;return t;}
+function editAgent(id){const l=find(id);l.agentName=prompt('Agent name:',l.agentName||'')??l.agentName;l.agency=prompt('Agency (optional):',l.agency||'')??l.agency;l.agentPhone=prompt('Agent phone (e.g. 082 123 4567):',l.agentPhone||'')??l.agentPhone;l.agentEmail=prompt('Agent email:',l.agentEmail||'')??l.agentEmail;persist();}
+function waAgent(id){const l=find(id);const n=waNumber(l.agentPhone);if(!n){alert('Add the agent’s phone number first (tap “Add agent contact”).');return;}window.open('https://wa.me/'+n+'?text='+encodeURIComponent(enquiryText(l)),'_blank');}
+function emailAgent(id){const l=find(id);const subj='Viewing request — '+(l.title||'property')+(l.suburb?', '+l.suburb:'');window.location.href='mailto:'+(l.agentEmail||'')+'?subject='+encodeURIComponent(subj)+'&body='+encodeURIComponent(enquiryText(l));}
+function saveEnquiry(){const e=document.getElementById('set-enquiry'),n=document.getElementById('set-contactName');if(e)state.settings.enquiry=e.value;if(n)state.settings.contactName=n.value;persist();alert('Saved.');}
+function waShare(id){const l=find(id);const txt=`🏠 ${l.title}\n${l.suburb} — ${l.price!=null?fmt(l.price):'price on listing'}\n${l.beds} bed / ${l.baths} bath${l.size?' / '+l.size+'m²':''}${l.garden?' / garden':''}\n${l.complex||''}\n${l.url||''}`;window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');if(!l.whatsapp){l.whatsapp=true;persist();}}
+function addListing(){const g=id=>document.getElementById(id);const price=g('a-price').value?+g('a-price').value:null;if(!g('a-title').value&&!g('a-url').value){alert('Add at least a title or a URL.');return;}
+  state.listings.push({id:uid(),campus:g('a-campus').value,suburb:g('a-suburb').value,title:g('a-title').value||'New listing',price,beds:+g('a-beds').value||2,baths:+g('a-baths').value||1,size:g('a-size').value?+g('a-size').value:null,garden:g('a-garden').value==='true',radius:g('a-radius').value,drive:g('a-drive').value,complex:g('a-complex').value,estRent:+g('a-rent').value||0,image:g('a-image').value.trim(),url:g('a-url').value,agentName:g('a-agentName').value.trim(),agency:'',agentPhone:g('a-agentPhone').value.trim(),agentEmail:g('a-agentEmail').value.trim(),source:'Manual',seen:new Date().toLocaleDateString('en-ZA',{month:'short',year:'numeric'}),status:'new',visit:'',whatsapp:false,notes:'',safety:'',demand:'',areaNote:''});
+  active=g('a-campus').value;campusFilter='all';persist();}
+function addOwned(){state.owned.push({id:uid(),name:'New unit',suburb:'',purchasePrice:0,rent:0,maintenance:[],income:[],expenses:[]});persist();}
+function editOwned(id){const o=state.owned.find(x=>x.id===id);o.name=prompt('Property name:',o.name)??o.name;o.suburb=prompt('Suburb:',o.suburb)??o.suburb;const p=prompt('Purchase price (R):',o.purchasePrice);if(p!==null)o.purchasePrice=+p||0;const r=prompt('Target monthly rent (R):',o.rent);if(r!==null)o.rent=+r||0;persist();}
+function delOwned(id){if(confirm('Remove this property and its ledgers?')){state.owned=state.owned.filter(x=>x.id!==id);persist();}}
+function addTask(oid){const o=state.owned.find(x=>x.id===oid),g=id=>document.getElementById(id),title=g('mt-'+oid).value.trim();if(!title){alert('Enter a task.');return;}o.maintenance=o.maintenance||[];o.maintenance.push({id:uid(),title,cost:+g('mc-'+oid).value||0,due:g('md-'+oid).value,cat:g('mcat-'+oid).value,done:false});persist();}
+function toggleTask(oid,tid){const o=state.owned.find(x=>x.id===oid),t=o.maintenance.find(x=>x.id===tid);t.done=!t.done;persist();}
+function delTask(oid,tid){const o=state.owned.find(x=>x.id===oid);o.maintenance=o.maintenance.filter(x=>x.id!==tid);persist();}
+function addLedger(oid,kind){const o=state.owned.find(x=>x.id===oid),g=id=>document.getElementById(id),amt=+g(`la-${kind}-${oid}`).value;if(!amt){alert('Enter an amount.');return;}o[kind]=o[kind]||[];o[kind].push({id:uid(),date:g(`ld-${kind}-${oid}`).value||dateStr(),cat:g(`lc-${kind}-${oid}`).value,amount:amt,note:g(`ln-${kind}-${oid}`).value});persist();}
+function delLedger(oid,kind,lid){const o=state.owned.find(x=>x.id===oid);o[kind]=o[kind].filter(x=>x.id!==lid);persist();}
+function saveSettings(){['budget','deposit','interest','term','levy','rates','insurance','maintPct','mgmtPct','vacancyPct'].forEach(k=>{const el=document.getElementById('set-'+k);if(el)state.settings[k]=+el.value||0;});persist();}
+function addTenant(){state.tenants.push({id:uid(),name:'New tenant',unit:'',rent:0,escalation:0,deposit:0,depositWhere:'',start:'',end:'',status:'',notes:'',checklist:[]});persist();}
+function editTenant(id){const t=state.tenants.find(x=>x.id===id);t.name=prompt('Tenant name:',t.name)??t.name;t.unit=prompt('Unit / property:',t.unit)??t.unit;const r=prompt('Monthly rent (R):',t.rent);if(r!==null)t.rent=+r||0;const e=prompt('Annual escalation %:',t.escalation);if(e!==null)t.escalation=+e||0;const d=prompt('Deposit (R):',t.deposit);if(d!==null)t.deposit=+d||0;t.depositWhere=prompt('Deposit held where:',t.depositWhere)??t.depositWhere;t.start=prompt('Lease start (YYYY-MM-DD):',t.start)??t.start;t.end=prompt('Lease end (YYYY-MM-DD):',t.end)??t.end;t.notes=prompt('Notes:',t.notes)??t.notes;persist();}
+function cycleStatus(id){const t=state.tenants.find(x=>x.id===id),o=['Paid','Arrears','Vacant','Notice given'];t.status=o[(o.indexOf(t.status)+1)%o.length];persist();}
+function toggleTenantChk(id,i){const t=state.tenants.find(x=>x.id===id);t.checklist=t.checklist||[];t.checklist[i]=!t.checklist[i];persist();}
+function delTenant(id){if(confirm('Remove this tenant?')){state.tenants=state.tenants.filter(x=>x.id!==id);persist();}}
+function exportJSON(){dl(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),'kampus-portfolio-'+dateStr()+'.json');}
+function importJSON(ev){const f=ev.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);state=Object.assign({listings:[],owned:[],tenants:[],settings:defaultSettings(),prefSuburbs:defaultPrefs()},d);if(!state.prefSuburbs)state.prefSuburbs=defaultPrefs();persist();alert('Imported.');}catch(e){alert('Could not read that file.');}};r.readAsText(f);}
+function restoreSeed(){const key=l=>((l.url||'')+'|'+(l.title||''));const have=new Set(state.listings.map(key));seedListings().forEach(s=>{if(!have.has(key(s)))state.listings.push(s);});persist();alert('Sample listings restored (existing ones kept).');}
+function wipe(){if(confirm('Delete ALL data? This cannot be undone.')){state={listings:[],owned:[],tenants:[],settings:defaultSettings()};persist();}}
+function copySched(){const t=document.getElementById('schedprompt');t.select();try{document.execCommand('copy');alert('Prompt copied.');}catch(e){}}
+async function persist(){await saveDB();if(sync&&sync.connected)syncPush();render();}
+
+/* ---------- share & install ---------- */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;showInstallBtn(true);});
+window.addEventListener('appinstalled',()=>{deferredPrompt=null;showInstallBtn(false);});
+function showInstallBtn(v){const b=document.getElementById('installBtn');if(b)b.style.display=v?'inline-flex':'none';}
+function shareOpen(){renderShare();document.getElementById('shareModal').classList.add('show');}
+function shareClose(){document.getElementById('shareModal').classList.remove('show');}
+function appURL(){return location.href.startsWith('http')?location.href.split('#')[0]:'';}
+function shareWhatsApp(){
+  const url=appURL();
+  const text='Kampus — our university property portfolio 🏠'+(url?('\n'+url):'  (I’ll send you the app file too)');
+  if(navigator.share){navigator.share({title:'Kampus',text:'Our property portfolio app',url:url||undefined}).catch(()=>{});return;}
+  window.open('https://wa.me/?text='+encodeURIComponent(text),'_blank');
+}
+function installApp(){
+  if(deferredPrompt){deferredPrompt.prompt();deferredPrompt.userChoice.finally(()=>{deferredPrompt=null;showInstallBtn(false);renderShare();});}
+  else alert('To install: open your browser menu and choose “Add to Home screen” / “Install”. On iPhone: tap Share, then “Add to Home Screen”.');
+}
+function renderShare(){
+  const url=appURL();
+  document.getElementById('shareUrlNote').innerHTML = url
+    ? 'Send this link to anyone — it opens on Android, iPhone and PC, and can be added to the home screen so it behaves like an installed app.'
+    : 'You’re opening the app from a file. To share a tappable link, host it once (see below) — or just send the <b>.html file</b> on WhatsApp and open it in a browser.';
+  document.getElementById('shareBody').innerHTML=`
+    <button class="btn wa" style="width:100%;justify-content:center;margin-bottom:8px" onclick="shareWhatsApp()">${ic('wa')} Share on WhatsApp</button>
+    ${deferredPrompt?`<button class="btn" style="width:100%;justify-content:center;margin-bottom:6px" onclick="installApp()">${ic('download')} Install app on this device</button>`:''}
+    <div class="steps">
+      <div class="step"><b>${ic('home')} Android</b><span>Open the link in Chrome → menu ⋮ → <b>Add to Home screen</b> (or <b>Install app</b>).</span></div>
+      <div class="step"><b>${ic('home')} iPhone / iPad</b><span>Open the link in Safari → <b>Share</b> → <b>Add to Home Screen</b>.</span></div>
+      <div class="step"><b>${ic('home')} PC (Windows/Mac)</b><span>Open in Chrome or Edge → click the <b>Install</b> icon in the address bar.</span></div>
+    </div>
+    <div class="notecard">${ic('users')}<div><b>Both of you seeing the same list?</b> Each device keeps its own copy. To sync, one of you taps <b>Finances → Export JSON</b> and WhatsApps the file; the other uses <b>Import JSON</b>. (A live shared version needs a hosted backend — happy to explain how.)</div></div>
+    <details class="apkbox"><summary>Want a real installable APK / app-store file?</summary>
+      <div class="hint" style="margin-top:6px">1) Host this one file for free — drag it onto <b>app.netlify.com/drop</b>, or use <b>GitHub Pages</b>. You’ll get a web address.<br>2) Paste that address into <b>PWABuilder.com</b> → it packages this exact app into a signed <b>Android APK/AAB</b> (plus Windows and iOS builds). No coding, no cost.</div>
+    </details>`;
+}
+
+/* ---------- optional live sync (Firebase Firestore, user's own project) ---------- */
+let sync={connected:false,applying:false,unsub:null,docRef:null,fs:null,space:'',lastPush:0,pushTimer:null};
+function syncCfgLoad(){try{return JSON.parse(localStorage.getItem('kampus:sync')||'null');}catch(e){return null;}}
+function syncCfgSave(c){try{localStorage.setItem('kampus:sync',JSON.stringify(c));}catch(e){}}
+function syncSavedConfigText(){const c=syncCfgLoad();return c&&c.config?c.config:'';}
+function parseFirebaseConfig(txt){
+  let s=String(txt||'').trim();const a=s.indexOf('{'),b=s.lastIndexOf('}');if(a<0||b<0)throw new Error('No config object found');
+  s=s.slice(a,b+1);
+  try{return JSON.parse(s);}catch(e){}
+  const j=s.replace(/([{,]\s*)([A-Za-z0-9_]+)\s*:/g,'$1"$2":').replace(/'/g,'"').replace(/,\s*}/g,'}').replace(/,\s*]/g,']');
+  return JSON.parse(j);
+}
+function syncStatus(t){const e=document.getElementById('syncStatus');if(e)e.textContent=t;const b=document.getElementById('syncBadge');if(b)b.style.display=sync.connected?'inline':'none';}
+async function syncConnect(cfg,space){
+  const appMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
+  const fs=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+  const app=appMod.initializeApp(cfg,'kampus-'+Date.now());
+  const db=fs.getFirestore(app);
+  sync.fs=fs;sync.space=space;sync.docRef=fs.doc(db,'spaces',space);
+  if(sync.unsub){try{sync.unsub();}catch(e){}}
+  sync.unsub=fs.onSnapshot(sync.docRef,(snap)=>{
+    if(snap.metadata.hasPendingWrites)return;
+    const data=snap.data();if(!data||!data.state)return;
+    if(data.updatedAt&&data.updatedAt===sync.lastPush)return; // our own write
+    try{sync.applying=true;
+      const d=JSON.parse(data.state);
+      state=Object.assign({listings:[],owned:[],tenants:[],settings:defaultSettings(),prefSuburbs:defaultPrefs()},d);
+      if(!state.prefSuburbs)state.prefSuburbs=defaultPrefs();
+      saveDB();render();
+    }catch(e){}finally{sync.applying=false;}
+  },(err)=>{sync.connected=false;syncStatus('Error: '+(err&&err.code||err));});
+  sync.connected=true;syncStatus('Connected · space “'+space+'”');
+  syncPush(true); // seed the space with our current data
+}
+function syncPush(force){
+  if(!sync.connected||sync.applying||!sync.fs||!sync.docRef)return;
+  clearTimeout(sync.pushTimer);
+  sync.pushTimer=setTimeout(async()=>{
+    try{const ts=Date.now();sync.lastPush=ts;await sync.fs.setDoc(sync.docRef,{state:JSON.stringify(state),updatedAt:ts});}
+    catch(e){syncStatus('Write failed — check Firestore rules');}
+  },force?0:800);
+}
+function syncDisconnect(){if(sync.unsub){try{sync.unsub();}catch(e){}}sync.connected=false;sync.unsub=null;syncStatus('Not connected');}
+async function syncConnectUI(){
+  const txt=(document.getElementById('sync-config')||{}).value||'';
+  let space=((document.getElementById('sync-space')||{}).value||'').trim().toLowerCase().replace(/[^\w-]+/g,'-').replace(/^-+|-+$/g,'');
+  if(!txt.trim()||!space){alert('Paste your Firebase config and choose a shared space code.');return;}
+  let cfg;try{cfg=parseFirebaseConfig(txt);}catch(e){alert('Could not read the Firebase config — paste the whole { … } object from your project settings.');return;}
+  syncStatus('Connecting…');
+  try{await syncConnect(cfg,space);syncCfgSave({config:txt.trim(),space});}
+  catch(e){syncStatus('Failed: '+(e&&e.message||e));alert('Could not connect: '+(e&&e.message||e)+'\n(Check your internet and that Firestore is enabled.)');}
+}
+function syncDisconnectUI(){syncDisconnect();try{localStorage.removeItem('kampus:sync');}catch(e){}}
+
+/* ---------- PWA: manifest + service worker ----------
+   When hosted (http/https) we use the real manifest.webmanifest + service-worker.js
+   packaged alongside this file. When opened as a bare file, we inject a manifest
+   so "Add to Home screen" still names/icons the app. */
+function installManifest(){
+  if(location.protocol!=='file:')return; // hosted: static manifest.webmanifest is used instead
+  try{
+    const icon='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" rx="96" fill="#14231d"/><rect x="120" y="120" width="272" height="272" rx="60" fill="#b58f43"/><text x="256" y="330" font-family="Georgia,serif" font-size="200" font-weight="700" fill="#20180a" text-anchor="middle">K</text></svg>');
+    const manifest={name:'Kampus Property Portfolio',short_name:'Kampus',start_url:'.',display:'standalone',background_color:'#e9ede8',theme_color:'#14231d',icons:[{src:icon,sizes:'512x512',type:'image/svg+xml',purpose:'any maskable'}]};
+    const link=document.createElement('link');link.rel='manifest';link.href=URL.createObjectURL(new Blob([JSON.stringify(manifest)],{type:'application/manifest+json'}));document.head.appendChild(link);
+    let al=document.createElement('link');al.rel='apple-touch-icon';al.href=icon;document.head.appendChild(al);
+  }catch(e){}
+}
+function registerSW(){
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  }
+}
+
+/* ---------- boot ---------- */
+function mergeSeeds(){const key=l=>((l.url||'')+'|'+(l.title||''));const have=new Set(state.listings.map(key));seedListings().forEach(s=>{if(!have.has(key(s)))state.listings.push(s);});}
+(async function init(){
+  installManifest();registerSW();
+  const db=await loadDB();
+  if(db){state=Object.assign({listings:[],owned:[],tenants:[],settings:defaultSettings(),prefSuburbs:defaultPrefs()},db);state.settings=Object.assign(defaultSettings(),state.settings||{});
+    if(!state.prefSuburbs)state.prefSuburbs=defaultPrefs();['potch','stel','pta','sol'].forEach(c=>{if(!state.prefSuburbs[c])state.prefSuburbs[c]=[];});
+    state.listings.forEach(l=>{if(l.radius===undefined)l.radius='core';if(l.safety===undefined)l.safety='';if(l.demand===undefined)l.demand='';if(l.areaNote===undefined)l.areaNote='';if(l.image===undefined)l.image='';if(l.drive===undefined)l.drive='';if(l.agentName===undefined)l.agentName='';if(l.agency===undefined)l.agency='';if(l.agentPhone===undefined)l.agentPhone='';if(l.agentEmail===undefined)l.agentEmail='';});}
+  else state={listings:[],owned:[],tenants:[],settings:defaultSettings(),prefSuburbs:defaultPrefs()};
+  mergeSeeds();await saveDB();render();
+  const sc=syncCfgLoad();
+  if(sc&&sc.config&&sc.space){try{const cfg=parseFirebaseConfig(sc.config);syncConnect(cfg,sc.space).catch(()=>{});}catch(e){}}
+})();
+</script>
+</body>
+</html>
