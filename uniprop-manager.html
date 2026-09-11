@@ -50,7 +50,7 @@ td{padding:9px 8px;border-bottom:1px solid var(--line)}tr:last-child td{border-b
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const CFG_KEY='uniprop:cfg';
-let sb=null, session=null, profile=null, tab='dashboard', msg=null, draftItems=[{description:'',qty:1,unit_price:0}];
+let sb=null, session=null, profile=null, orgName='', tab='dashboard', msg=null, draftItems=[{description:'',qty:1,unit_price:0}];
 const app=()=>document.getElementById('app');
 const cfg=()=>{try{return JSON.parse(localStorage.getItem(CFG_KEY)||'null');}catch(e){return null;}};
 const money=n=>n==null?'—':'R'+Number(n).toLocaleString('en-ZA');
@@ -74,6 +74,7 @@ async function afterAuth(){
     const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
     if(error) throw error; profile=data;
   }catch(e){ profile={id:session.user.id,email:session.user.email,role:'tenant',org_id:null}; }
+  if(profile&&profile.org_id){ try{ const {data}=await sb.from('organisations').select('name').eq('id',profile.org_id).single(); orgName=data?data.name:''; }catch(e){} }
   render();
 }
 
@@ -157,7 +158,7 @@ where email='${esc(profile?.email||'YOUR-EMAIL')}';</pre>
       <p class="muted">Then sign out and back in.</p></div></main>`;
     return;
   }
-  const tabs=['dashboard','owners','properties','units','tenants','leases','invoices'];
+  const tabs=['dashboard','owners','properties','units','tenants','leases','invoices','payments','expenses','statements'];
   const nav=`<nav>${tabs.map(t=>`<button class="tab ${tab===t?'active':''}" onclick="UP.go('${t}')">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</nav>`;
   app().innerHTML=header+nav+`<main id="main">${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}<div class="panel"><p class="muted">Loading…</p></div></main>`;
   renderTab();
@@ -187,6 +188,9 @@ async function renderTab(){
   if(tab==='tenants') return tabTenants(m,banner);
   if(tab==='leases') return tabLeases(m,banner);
   if(tab==='invoices') return tabInvoices(m,banner);
+  if(tab==='payments') return tabPayments(m,banner);
+  if(tab==='expenses') return tabExpenses(m,banner);
+  if(tab==='statements') return tabStatements(m,banner);
 }
 
 /* ---------- owners ---------- */
@@ -330,6 +334,137 @@ window.UP.saveInvoice=async()=>{
   if(e2) return flash('err','items: '+e2.message);
   draftItems=[{description:'',qty:1,unit_price:0}]; flash('ok','Invoice '+number+' created.'); renderTab();
 };
+
+/* ---------- invoice totals helper ---------- */
+async function invoiceTotalsMap(){
+  const [invs,items]=await Promise.all([list('invoices'),list('invoice_items','*','invoice_id')]);
+  const by={}; items.forEach(it=>{(by[it.invoice_id]=by[it.invoice_id]||[]).push(it);});
+  const totals={};
+  invs.forEach(inv=>{const its=by[inv.id]||[];const sub=its.reduce((s,i)=>s+Number(i.qty||0)*Number(i.unit_price||0),0);totals[inv.id]={total:sub*(1+Number(inv.vat_pct||0)/100)};});
+  return {invs,totals};
+}
+
+/* ---------- payments ---------- */
+async function tabPayments(m,banner){
+  const [pays,tenants,leases,tot]=await Promise.all([list('payments'),list('tenants'),list('leases'),invoiceTotalsMap()]);
+  const tmap=Object.fromEntries(tenants.map(t=>[t.id,t.name]));
+  const deb={},cred={};
+  tot.invs.filter(i=>['sent','paid','overdue'].includes(i.status)).forEach(i=>{deb[i.tenant_id]=(deb[i.tenant_id]||0)+((tot.totals[i.id]&&tot.totals[i.id].total)||0);});
+  pays.forEach(p=>{cred[p.tenant_id]=(cred[p.tenant_id]||0)+Number(p.amount||0);});
+  const ids=[...new Set([...Object.keys(deb),...Object.keys(cred)])];
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Record payment</h2>
+    <div class="frow"><div class="field"><label>Tenant</label><select id="pay-tenant">${tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Lease (optional)</label><select id="pay-lease"><option value="">—</option>${leases.map(l=>`<option value="${l.id}">${esc(tmap[l.tenant_id]||'lease')} · ${money(l.rent)}</option>`).join('')}</select></div></div>
+    <div class="frow3"><div class="field"><label>Amount (R)</label><input id="pay-amount" type="number"></div>
+      <div class="field"><label>Date</label><input id="pay-date" type="date"></div>
+      <div class="field"><label>Method</label><select id="pay-method"><option>EFT</option><option>Debit order</option><option>Cash</option><option>Card</option><option>Other</option></select></div></div>
+    <div class="field"><label>Reference</label><input id="pay-ref"></div>
+    <button class="btn" onclick="UP.addPayment()">Save payment</button></div>
+    <div class="panel"><h2 class="serif">Tenant balances</h2>
+    <table><thead><tr><th>Tenant</th><th>Invoiced</th><th>Paid</th><th>Balance</th></tr></thead><tbody>
+    ${ids.map(id=>{const b=(deb[id]||0)-(cred[id]||0);return `<tr><td>${esc(tmap[id]||'')}</td><td>${money(deb[id]||0)}</td><td>${money(cred[id]||0)}</td><td style="color:${b>0.5?'#a94b3d':'#134c38'}">${b>0.5?'owes ':b<-0.5?'credit ':''}${money(Math.abs(b))}</td></tr>`;}).join('')||'<tr><td colspan=4 class="muted">No invoices/payments yet.</td></tr>'}
+    </tbody></table></div>
+    <div class="panel"><h2 class="serif">Recent payments (${pays.length})</h2>
+    <table><thead><tr><th>Date</th><th>Tenant</th><th>Amount</th><th>Method</th><th>Ref</th></tr></thead><tbody>
+    ${pays.slice(0,50).map(p=>`<tr><td>${p.paid_at||''}</td><td>${esc(tmap[p.tenant_id]||'')}</td><td>${money(p.amount)}</td><td>${esc(p.method||'')}</td><td>${esc(p.reference||'')}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.addPayment=async()=>{
+  const tenant_id=document.getElementById('pay-tenant').value; if(!tenant_id)return flash('err','Add a tenant first.');
+  const amount=num('pay-amount'); if(!amount)return flash('err','Enter an amount.');
+  const ok=await insertRow('payments',{org_id:profile.org_id,tenant_id,lease_id:document.getElementById('pay-lease').value||null,
+    amount,method:document.getElementById('pay-method').value,reference:document.getElementById('pay-ref').value.trim(),
+    paid_at:val('pay-date')||new Date().toISOString().slice(0,10)});
+  if(ok) renderTab();
+};
+
+/* ---------- expenses ---------- */
+const EXPENSE_CATS=['Maintenance & repairs','Rates & taxes','Levy','Buildings insurance','Water & sanitation','Electricity','Refuse','Compliance certificate','Managing agent','Garden & security','Advertising','Other'];
+async function tabExpenses(m,banner){
+  const [rows,props]=await Promise.all([list('expenses'),list('properties')]);
+  const pmap=Object.fromEntries(props.map(p=>[p.id,p.name||p.suburb||'']));
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Add expense</h2>
+    <div class="frow"><div class="field"><label>Property</label><select id="e-prop">${props.map(p=>`<option value="${p.id}">${esc(p.name||p.suburb||'property')}</option>`).join('')}</select></div>
+      <div class="field"><label>Category</label><select id="e-cat">${EXPENSE_CATS.map(c=>`<option>${c}</option>`).join('')}</select></div></div>
+    <div class="frow3"><div class="field"><label>Amount (R)</label><input id="e-amount" type="number"></div>
+      <div class="field"><label>Date</label><input id="e-date" type="date"></div>
+      <div class="field"><label>Deductible?</label><select id="e-ded"><option value="true">Yes</option><option value="false">No</option></select></div></div>
+    <div class="field"><label>Notes</label><input id="e-notes"></div>
+    <button class="btn" onclick="UP.addExpense()">Save expense</button></div>
+    <div class="panel"><h2 class="serif">Expenses (${rows.length})</h2>
+    <table><thead><tr><th>Date</th><th>Property</th><th>Category</th><th>Amount</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${r.expense_date||''}</td><td>${esc(pmap[r.property_id]||'')}</td><td>${esc(r.category||'')}</td><td>${money(r.amount)}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.addExpense=async()=>{
+  const property_id=document.getElementById('e-prop').value; if(!property_id)return flash('err','Add a property first.');
+  const amount=num('e-amount'); if(!amount)return flash('err','Enter an amount.');
+  const ok=await insertRow('expenses',{org_id:profile.org_id,property_id,category:document.getElementById('e-cat').value,
+    amount,expense_date:val('e-date')||new Date().toISOString().slice(0,10),
+    deductible:document.getElementById('e-ded').value==='true',notes:document.getElementById('e-notes').value.trim()});
+  if(ok) renderTab();
+};
+
+/* ---------- monthly owner statement ---------- */
+async function tabStatements(m,banner){
+  const owners=await list('owners');
+  const mth=new Date().toISOString().slice(0,7);
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Monthly owner statement</h2>
+    <p class="muted">Rent received − expenses − management fee = net payout to the owner, as a printable PDF for the month you choose.</p>
+    <div class="frow3"><div class="field"><label>Owner</label><select id="st-owner">${owners.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Month</label><input id="st-month" type="month" value="${mth}"></div>
+      <div class="field"><label>Management fee %</label><input id="st-fee" type="number" value="10"></div></div>
+    <button class="btn" onclick="UP.genStatement()">Generate statement</button></div>
+    <div class="panel"><p class="muted">Record tenant payments (Payments) and property expenses (Expenses) first — the statement pulls from those for the chosen month.</p></div>`;
+}
+window.UP.genStatement=async()=>{
+  const owner_id=document.getElementById('st-owner').value; if(!owner_id)return flash('err','Add an owner first.');
+  const month=document.getElementById('st-month').value; if(!month)return flash('err','Pick a month.');
+  const feePct=num('st-fee')||0;
+  const start=month+'-01';
+  const d=new Date(month+'-01T00:00:00'); const end=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10);
+  const owner=(await sb.from('owners').select('*').eq('id',owner_id).single()).data;
+  const props=(await sb.from('properties').select('*').eq('owner_id',owner_id)).data||[];
+  if(!props.length)return flash('err','This owner has no properties yet.');
+  const propIds=props.map(p=>p.id);
+  const units=(await sb.from('units').select('*').in('property_id',propIds)).data||[];
+  const unitIds=units.map(u=>u.id);
+  let leases=[]; if(unitIds.length) leases=((await sb.from('leases').select('*').in('unit_id',unitIds)).data)||[];
+  const leaseIds=leases.map(l=>l.id);
+  let pays=[]; if(leaseIds.length) pays=((await sb.from('payments').select('*').in('lease_id',leaseIds).gte('paid_at',start).lte('paid_at',end)).data)||[];
+  const exps=((await sb.from('expenses').select('*').in('property_id',propIds).gte('expense_date',start).lte('expense_date',end)).data)||[];
+  const income=pays.reduce((s,p)=>s+Number(p.amount||0),0);
+  const expTot=exps.reduce((s,e)=>s+Number(e.amount||0),0);
+  const fee=income*feePct/100, net=income-expTot-fee;
+  const R=n=>'R'+Number(n||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const payRows=pays.map(p=>`<tr><td>${p.paid_at||''}</td><td>Rent received${p.reference?' ('+esc(p.reference)+')':''}</td><td class=r>${R(p.amount)}</td></tr>`).join('');
+  const expRows=exps.map(e=>`<tr><td>${e.expense_date||''}</td><td>${esc(e.category||'Expense')}${e.notes?' — '+esc(e.notes):''}</td><td class=r>-${R(e.amount)}</td></tr>`).join('');
+  const inner=`<h1>${esc(orgName||'UniProp')} — Owner Statement</h1>
+    <p class=muted>${esc(owner.name)} · ${month}</p>
+    <table><thead><tr><th>Date</th><th>Description</th><th class=r>Amount</th></tr></thead><tbody>
+    ${payRows||'<tr><td colspan=3 class=muted>No rent received this month.</td></tr>'}
+    ${expRows}
+    <tr><td></td><td>Management fee (${feePct}%)</td><td class=r>-${R(fee)}</td></tr>
+    </tbody><tfoot>
+    <tr><td></td><td class=r>Rent received</td><td class=r>${R(income)}</td></tr>
+    <tr><td></td><td class=r>Less expenses</td><td class=r>-${R(expTot)}</td></tr>
+    <tr><td></td><td class=r>Less management fee</td><td class=r>-${R(fee)}</td></tr>
+    <tr><td></td><td class=r><b>Net payout to owner</b></td><td class=r><b>${R(net)}</b></td></tr>
+    </tfoot></table>
+    <p class=muted style="margin-top:24px">Generated ${new Date().toLocaleString('en-ZA')}. Owner funds are held in trust and paid over per the management mandate.</p>`;
+  openPrint('Owner Statement — '+owner.name+' '+month, inner);
+};
+function openPrint(title, inner){
+  const css=`<style>body{font-family:Inter,Arial,sans-serif;color:#132420;padding:28px;max-width:720px;margin:auto}
+   h1{font-family:Georgia,serif;font-size:20px;margin:0}.muted{color:#777;font-size:12px}
+   table{border-collapse:collapse;width:100%;font-size:13px;margin-top:16px}
+   th,td{border-bottom:1px solid #dfe5df;padding:8px;text-align:left}.r{text-align:right}
+   th{background:#132420;color:#fff}tfoot td{border-top:2px solid #132420;font-weight:600}</style>`;
+  const html='<html><head><meta charset="utf-8"><title>'+esc(title)+'</title>'+css+'</head><body>'+inner+'</body></html>';
+  const w=window.open('','_blank');
+  if(w){ w.document.write(html); w.document.close(); setTimeout(()=>{w.focus();w.print();},400); }
+  else flash('err','Allow pop-ups to generate the statement PDF.');
+}
 
 /* ---------- small utils ---------- */
 function num(id){const v=document.getElementById(id); return v&&v.value!==''?parseFloat(v.value):null;}
