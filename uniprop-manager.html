@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>UniProp Manager</title>
+<meta name="theme-color" content="#14231d">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#132420;--paper:#e9ede8;--card:#fff;--card2:#f5f8f3;--emerald:#1d6b4f;--emerald-d:#134c38;
+ --brass:#b58f43;--clay:#a94b3d;--slate:#586460;--line:#d7ded6;--emerald-bg:#e5f0ea;--shadow:0 1px 2px rgba(15,30,25,.05),0 6px 20px rgba(15,30,25,.06)}
+*{box-sizing:border-box}html,body{margin:0}body{font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5}
+h1,h2,h3{margin:0;line-height:1.15}.serif{font-family:'Fraunces',Georgia,serif}
+button{font-family:inherit;cursor:pointer}a{color:var(--emerald-d)}
+input,select,textarea{font-family:inherit;font-size:14px;width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid var(--emerald);outline-offset:-1px}
+header{background:linear-gradient(120deg,#0f231e,#1c3a2f);color:#eef2ee;padding:13px 16px;display:flex;align-items:center;gap:11px}
+.mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--brass),#d8b869);display:grid;place-items:center;font-family:'Fraunces';font-weight:700;color:#20180a;font-size:18px}
+header h1{font-family:'Fraunces';font-size:19px}header .who{margin-left:auto;font-size:12px;color:#a9bcb1;text-align:right}
+nav{background:var(--card);border-bottom:1px solid var(--line);display:flex;gap:2px;overflow-x:auto;padding:0 8px;position:sticky;top:0;z-index:5}
+.tab{border:none;background:none;padding:13px 13px 11px;font-size:13.5px;font-weight:600;color:var(--slate);white-space:nowrap;border-bottom:2.5px solid transparent}
+.tab.active{color:var(--emerald-d);border-color:var(--brass)}
+main{max-width:1000px;margin:0 auto;padding:18px 14px 60px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.panel h2{font-family:'Fraunces';font-size:18px;margin-bottom:12px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}.frow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media(max-width:560px){.frow,.frow3{grid-template-columns:1fr}}
+label{display:block;font-size:11.5px;font-weight:600;color:var(--slate);margin:0 0 4px}.field{margin-bottom:10px}
+.btn{background:var(--emerald);color:#fff;border:none;border-radius:10px;padding:11px 16px;font-weight:600;font-size:14px}
+.btn.ghost{background:none;color:var(--emerald-d);border:1px solid var(--line)}.btn.mini{padding:8px 12px;font-size:13px}
+.btn.link{background:none;border:none;color:var(--emerald-d);text-decoration:underline;padding:0;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px}th{text-align:left;font-size:11px;color:#8a938d;font-weight:600;padding:7px 8px;border-bottom:1px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid var(--line)}tr:last-child td{border-bottom:none}
+.msg{padding:11px 13px;border-radius:11px;font-size:13px;margin-bottom:12px}
+.msg.err{background:#f7e9e6;color:#8a2f22;border:1px solid #e6c3bb}.msg.ok{background:var(--emerald-bg);color:var(--emerald-d)}
+.center{max-width:420px;margin:8vh auto;padding:0 16px}.muted{color:var(--slate);font-size:13px}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;background:var(--emerald-bg);color:var(--emerald-d)}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.statc{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:14px}.statc b{font-family:'Fraunces';font-size:22px;display:block}
+.linkrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.itemrow{display:grid;grid-template-columns:2fr 0.6fr 0.8fr auto;gap:8px;margin-bottom:6px;align-items:center}
+</style>
+</head>
+<body>
+<div id="app"><div class="center"><p class="muted">Loading…</p></div></div>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+
+const CFG_KEY='uniprop:cfg';
+let sb=null, session=null, profile=null, tab='dashboard', msg=null, draftItems=[{description:'',qty:1,unit_price:0}];
+const app=()=>document.getElementById('app');
+const cfg=()=>{try{return JSON.parse(localStorage.getItem(CFG_KEY)||'null');}catch(e){return null;}};
+const money=n=>n==null?'—':'R'+Number(n).toLocaleString('en-ZA');
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function flash(type,text){msg={type,text};render();setTimeout(()=>{msg=null;},4000);}
+
+/* ---------- boot ---------- */
+init();
+async function init(){
+  const c=cfg();
+  if(!c||!c.url||!c.key){renderSetup();return;}
+  try{ sb=createClient(c.url,c.key); }catch(e){ renderSetup('Could not start Supabase client: '+e.message); return; }
+  const { data } = await sb.auth.getSession();
+  session=data.session;
+  sb.auth.onAuthStateChange((_e,s)=>{ session=s; afterAuth(); });
+  afterAuth();
+}
+async function afterAuth(){
+  if(!session){ profile=null; renderAuth(); return; }
+  try{
+    const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+    if(error) throw error; profile=data;
+  }catch(e){ profile={id:session.user.id,email:session.user.email,role:'tenant',org_id:null}; }
+  render();
+}
+
+/* ---------- setup (URL + anon key) ---------- */
+function renderSetup(err){
+  app().innerHTML=`<div class="center">
+    <div class="panel">
+      <h2 class="serif">Connect to Supabase</h2>
+      <p class="muted">Paste your project URL and the <b>anon public</b> key (Project Settings → API). The anon key is safe here — Row-Level Security protects the data. Never paste the service_role key.</p>
+      ${err?`<div class="msg err">${esc(err)}</div>`:''}
+      <div class="field"><label>Project URL</label><input id="cfg-url" placeholder="https://xxxx.supabase.co"></div>
+      <div class="field"><label>Anon public key</label><input id="cfg-key" placeholder="eyJhbGciOi..."></div>
+      <button class="btn" id="cfg-save">Connect</button>
+    </div></div>`;
+  document.getElementById('cfg-save').onclick=()=>{
+    const url=document.getElementById('cfg-url').value.trim().replace(/\/$/,'');
+    const key=document.getElementById('cfg-key').value.trim();
+    if(!url||!key){alert('Enter both the URL and the anon key.');return;}
+    localStorage.setItem(CFG_KEY,JSON.stringify({url,key})); init();
+  };
+}
+
+/* ---------- auth ---------- */
+function renderAuth(){
+  app().innerHTML=`<div class="center">
+    <div class="panel">
+      <h2 class="serif">UniProp Manager</h2>
+      <p class="muted">Sign in to your account.</p>
+      ${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}
+      <div class="field"><label>Email</label><input id="au-email" type="email"></div>
+      <div class="field"><label>Password</label><input id="au-pass" type="password"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="au-in">Sign in</button>
+        <button class="btn ghost" id="au-up">Create account</button>
+      </div>
+      <p class="muted" style="margin-top:12px"><button class="btn link" id="au-reset">Change Supabase connection</button></p>
+    </div></div>`;
+  document.getElementById('au-in').onclick=signIn;
+  document.getElementById('au-up').onclick=signUp;
+  document.getElementById('au-reset').onclick=()=>{localStorage.removeItem(CFG_KEY);init();};
+}
+async function signIn(){
+  const email=document.getElementById('au-email').value.trim(), password=document.getElementById('au-pass').value;
+  const { error } = await sb.auth.signInWithPassword({email,password});
+  if(error) flash('err',error.message);
+}
+async function signUp(){
+  const email=document.getElementById('au-email').value.trim(), password=document.getElementById('au-pass').value;
+  const { error } = await sb.auth.signUp({email,password});
+  if(error) flash('err',error.message);
+  else flash('ok','Account created. If email confirmation is on, confirm via the email, then sign in.');
+}
+async function signOut(){ await sb.auth.signOut(); }
+window.UP={};window.UP.signOut=signOut;
+
+/* ---------- data helpers ---------- */
+async function list(table, sel='*', order='created_at'){
+  const { data, error } = await sb.from(table).select(sel).order(order,{ascending:false});
+  if(error){ flash('err',table+': '+error.message); return []; }
+  return data||[];
+}
+async function insertRow(table, row){
+  const { error } = await sb.from(table).insert(row);
+  if(error){ flash('err',table+': '+error.message); return false; }
+  flash('ok','Saved.'); return true;
+}
+
+/* ---------- main render ---------- */
+function render(){
+  if(!session){ renderAuth(); return; }
+  const isStaff=['admin','manager','staff'].includes(profile?.role);
+  const header=`<header><div class="mark">U</div><h1 class="serif">UniProp Manager</h1>
+    <div class="who">${esc(profile?.email||'')}<br><span class="pill">${esc(profile?.role||'—')}</span> ${profile?.org_id?'':'· no org'} · <button class="btn link" onclick="UP.signOut()">Sign out</button></div></header>`;
+  if(!isStaff || !profile?.org_id){
+    app().innerHTML=header+`<main><div class="panel"><h2 class="serif">One more step</h2>
+      <p class="muted">Your login works, but you're not set as staff of an organisation yet, so there's nothing to manage. Run the <b>bootstrap</b> from migration 01 in the Supabase SQL Editor (replace the email with <b>${esc(profile?.email||'your email')}</b>):</p>
+      <pre style="white-space:pre-wrap;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:12px">insert into organisations (name) values ('UniProp');
+update profiles set role='admin',
+  org_id=(select id from organisations order by created_at desc limit 1)
+where email='${esc(profile?.email||'YOUR-EMAIL')}';</pre>
+      <p class="muted">Then sign out and back in.</p></div></main>`;
+    return;
+  }
+  const tabs=['dashboard','owners','properties','units','tenants','leases','invoices'];
+  const nav=`<nav>${tabs.map(t=>`<button class="tab ${tab===t?'active':''}" onclick="UP.go('${t}')">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</nav>`;
+  app().innerHTML=header+nav+`<main id="main">${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}<div class="panel"><p class="muted">Loading…</p></div></main>`;
+  renderTab();
+}
+window.UP.go=(t)=>{ tab=t; render(); };
+
+async function renderTab(){
+  const m=document.getElementById('main'); if(!m)return;
+  const banner=msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:'';
+  if(tab==='dashboard'){
+    const [o,p,u,t,l,i]=await Promise.all([list('owners'),list('properties'),list('units'),list('tenants'),list('leases'),list('invoices')]);
+    m.innerHTML=banner+`<div class="panel"><h2 class="serif">Overview</h2>
+      <div class="stat">
+        <div class="statc"><b>${o.length}</b>Owners</div>
+        <div class="statc"><b>${p.length}</b>Properties</div>
+        <div class="statc"><b>${u.length}</b>Units</div>
+        <div class="statc"><b>${t.length}</b>Tenants</div>
+        <div class="statc"><b>${l.length}</b>Leases</div>
+        <div class="statc"><b>${i.length}</b>Invoices</div>
+      </div></div>
+      <div class="panel"><p class="muted">Add owners → properties → units → tenants → leases, then raise invoices. Everything is scoped to your organisation by Row-Level Security.</p></div>`;
+    return;
+  }
+  if(tab==='owners') return tabOwners(m,banner);
+  if(tab==='properties') return tabProperties(m,banner);
+  if(tab==='units') return tabUnits(m,banner);
+  if(tab==='tenants') return tabTenants(m,banner);
+  if(tab==='leases') return tabLeases(m,banner);
+  if(tab==='invoices') return tabInvoices(m,banner);
+}
+
+/* ---------- owners ---------- */
+async function tabOwners(m,banner){
+  const rows=await list('owners');
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Add owner</h2>
+    <div class="frow"><div class="field"><label>Name</label><input id="o-name"></div><div class="field"><label>Email</label><input id="o-email"></div></div>
+    <div class="field"><label>Phone</label><input id="o-phone"></div>
+    <button class="btn" onclick="UP.addOwner()">Save owner</button></div>
+    <div class="panel"><h2 class="serif">Owners (${rows.length})</h2>
+    <table><thead><tr><th>Name</th><th>Email</th><th>Phone</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.email||'')}</td><td>${esc(r.phone||'')}</td></tr>`).join('')||'<tr><td colspan=3 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.addOwner=async()=>{
+  const name=document.getElementById('o-name').value.trim(); if(!name)return flash('err','Owner name required.');
+  const ok=await insertRow('owners',{org_id:profile.org_id,name,email:document.getElementById('o-email').value.trim(),phone:document.getElementById('o-phone').value.trim()});
+  if(ok) renderTab();
+};
+
+/* ---------- properties ---------- */
+async function tabProperties(m,banner){
+  const [rows,owners]=await Promise.all([list('properties'),list('owners')]);
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Add property</h2>
+    <div class="frow"><div class="field"><label>Name / description</label><input id="p-name"></div>
+      <div class="field"><label>Type</label><select id="p-type"><option value="residential">Residential</option><option value="commercial">Commercial</option><option value="industrial">Industrial</option></select></div></div>
+    <div class="field"><label>Owner</label><select id="p-owner"><option value="">— none —</option>${owners.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select></div>
+    <div class="frow3"><div class="field"><label>Suburb</label><input id="p-suburb"></div><div class="field"><label>City</label><input id="p-city"></div><div class="field"><label>Valuation (R)</label><input id="p-val" type="number"></div></div>
+    <div class="field"><label>Address</label><input id="p-addr"></div>
+    <button class="btn" onclick="UP.addProperty()">Save property</button></div>
+    <div class="panel"><h2 class="serif">Properties (${rows.length})</h2>
+    <table><thead><tr><th>Name</th><th>Type</th><th>Suburb</th><th>Valuation</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.name||'')}</td><td>${esc(r.property_type)}</td><td>${esc(r.suburb||'')}</td><td>${money(r.valuation)}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.addProperty=async()=>{
+  const ok=await insertRow('properties',{org_id:profile.org_id,name:document.getElementById('p-name').value.trim(),
+    property_type:document.getElementById('p-type').value,owner_id:document.getElementById('p-owner').value||null,
+    suburb:document.getElementById('p-suburb').value.trim(),city:document.getElementById('p-city').value.trim(),
+    address:document.getElementById('p-addr').value.trim(),valuation:num('p-val')});
+  if(ok) renderTab();
+};
+
+/* ---------- units ---------- */
+async function tabUnits(m,banner){
+  const [rows,props]=await Promise.all([list('units'),list('properties')]);
+  const pmap=Object.fromEntries(props.map(p=>[p.id,p.name||p.suburb||p.id.slice(0,6)]));
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Add unit</h2>
+    <div class="field"><label>Property</label><select id="u-prop">${props.map(p=>`<option value="${p.id}">${esc(p.name||p.suburb||'property')}</option>`).join('')}</select></div>
+    <div class="frow3"><div class="field"><label>Unit name</label><input id="u-name"></div><div class="field"><label>Beds</label><input id="u-beds" type="number"></div><div class="field"><label>Baths</label><input id="u-baths" type="number" step="0.5"></div></div>
+    <div class="frow"><div class="field"><label>Size m²</label><input id="u-size" type="number"></div><div class="field"><label>Market rent (R)</label><input id="u-rent" type="number"></div></div>
+    <button class="btn" onclick="UP.addUnit()">Save unit</button></div>
+    <div class="panel"><h2 class="serif">Units (${rows.length})</h2>
+    <table><thead><tr><th>Unit</th><th>Property</th><th>Beds</th><th>Rent</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.name||'')}</td><td>${esc(pmap[r.property_id]||'')}</td><td>${r.bedrooms??''}</td><td>${money(r.market_rent)}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.addUnit=async()=>{
+  const property_id=document.getElementById('u-prop').value; if(!property_id)return flash('err','Add a property first.');
+  const ok=await insertRow('units',{org_id:profile.org_id,property_id,name:document.getElementById('u-name').value.trim(),
+    bedrooms:num('u-beds'),bathrooms:num('u-baths'),size_sqm:num('u-size'),market_rent:num('u-rent')});
+  if(ok) renderTab();
+};
+
+/* ---------- tenants ---------- */
+async function tabTenants(m,banner){
+  const rows=await list('tenants');
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Add tenant</h2>
+    <div class="frow"><div class="field"><label>Name</label><input id="t-name"></div><div class="field"><label>ID number</label><input id="t-id"></div></div>
+    <div class="frow"><div class="field"><label>Email</label><input id="t-email"></div><div class="field"><label>Phone</label><input id="t-phone"></div></div>
+    <button class="btn" onclick="UP.addTenant()">Save tenant</button></div>
+    <div class="panel"><h2 class="serif">Tenants (${rows.length})</h2>
+    <table><thead><tr><th>Name</th><th>Email</th><th>Phone</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.email||'')}</td><td>${esc(r.phone||'')}</td></tr>`).join('')||'<tr><td colspan=3 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.addTenant=async()=>{
+  const name=document.getElementById('t-name').value.trim(); if(!name)return flash('err','Tenant name required.');
+  const ok=await insertRow('tenants',{org_id:profile.org_id,name,id_number:document.getElementById('t-id').value.trim(),
+    email:document.getElementById('t-email').value.trim(),phone:document.getElementById('t-phone').value.trim()});
+  if(ok) renderTab();
+};
+
+/* ---------- leases ---------- */
+async function tabLeases(m,banner){
+  const [rows,units,tenants]=await Promise.all([list('leases'),list('units'),list('tenants')]);
+  const umap=Object.fromEntries(units.map(u=>[u.id,u.name||u.id.slice(0,6)]));
+  const tmap=Object.fromEntries(tenants.map(t=>[t.id,t.name]));
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Add lease</h2>
+    <div class="frow"><div class="field"><label>Unit</label><select id="l-unit">${units.map(u=>`<option value="${u.id}">${esc(u.name||'unit')}</option>`).join('')}</select></div>
+      <div class="field"><label>Tenant</label><select id="l-tenant">${tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div></div>
+    <div class="frow3"><div class="field"><label>Rent (R)</label><input id="l-rent" type="number"></div><div class="field"><label>Escalation %</label><input id="l-esc" type="number"></div><div class="field"><label>Deposit (R)</label><input id="l-dep" type="number"></div></div>
+    <div class="frow"><div class="field"><label>Start</label><input id="l-start" type="date"></div><div class="field"><label>End</label><input id="l-end" type="date"></div></div>
+    <button class="btn" onclick="UP.addLease()">Save lease</button></div>
+    <div class="panel"><h2 class="serif">Leases (${rows.length})</h2>
+    <table><thead><tr><th>Unit</th><th>Tenant</th><th>Rent</th><th>Start</th><th>End</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(umap[r.unit_id]||'')}</td><td>${esc(tmap[r.tenant_id]||'')}</td><td>${money(r.rent)}</td><td>${r.start_date||''}</td><td>${r.end_date||''}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.addLease=async()=>{
+  const unit_id=document.getElementById('l-unit').value, tenant_id=document.getElementById('l-tenant').value;
+  if(!unit_id||!tenant_id)return flash('err','Add a unit and a tenant first.');
+  const ok=await insertRow('leases',{org_id:profile.org_id,unit_id,tenant_id,rent:num('l-rent'),escalation_pct:num('l-esc'),
+    deposit:num('l-dep'),start_date:val('l-start'),end_date:val('l-end'),status:'active'});
+  if(ok) renderTab();
+};
+
+/* ---------- invoices ---------- */
+async function tabInvoices(m,banner){
+  const [rows,tenants,leases]=await Promise.all([list('invoices'),list('tenants'),list('leases')]);
+  const tmap=Object.fromEntries(tenants.map(t=>[t.id,t.name]));
+  const itemsHtml=draftItems.map((it,i)=>`<div class="itemrow">
+    <input placeholder="Description" value="${esc(it.description)}" onchange="UP.item(${i},'description',this.value)">
+    <input type="number" placeholder="Qty" value="${it.qty}" onchange="UP.item(${i},'qty',this.value)">
+    <input type="number" placeholder="Unit R" value="${it.unit_price}" onchange="UP.item(${i},'unit_price',this.value)">
+    <button class="btn ghost mini" onclick="UP.delItem(${i})">×</button></div>`).join('');
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">New invoice</h2>
+    <div class="frow"><div class="field"><label>Tenant</label><select id="i-tenant">${tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Lease (optional)</label><select id="i-lease"><option value="">—</option>${leases.map(l=>`<option value="${l.id}">${esc(tmap[l.tenant_id]||'lease')} · ${money(l.rent)}</option>`).join('')}</select></div></div>
+    <div class="frow"><div class="field"><label>Due date</label><input id="i-due" type="date"></div><div class="field"><label>VAT %</label><input id="i-vat" type="number" value="0"></div></div>
+    <label>Line items</label>${itemsHtml}
+    <button class="btn ghost mini" onclick="UP.addItem()">+ Add line</button>
+    <div style="margin-top:10px"><button class="btn" onclick="UP.saveInvoice()">Create &amp; mark sent</button></div></div>
+    <div class="panel"><h2 class="serif">Invoices (${rows.length})</h2>
+    <table><thead><tr><th>Number</th><th>Tenant</th><th>Issued</th><th>Due</th><th>Status</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.number)}</td><td>${esc(tmap[r.tenant_id]||'')}</td><td>${r.issue_date||''}</td><td>${r.due_date||''}</td><td>${esc(r.status)}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.item=(i,k,v)=>{ draftItems[i][k]= (k==='description')?v : (parseFloat(v)||0); };
+window.UP.addItem=()=>{ draftItems.push({description:'',qty:1,unit_price:0}); renderTab(); };
+window.UP.delItem=(i)=>{ draftItems.splice(i,1); if(!draftItems.length)draftItems=[{description:'',qty:1,unit_price:0}]; renderTab(); };
+window.UP.saveInvoice=async()=>{
+  const tenant_id=document.getElementById('i-tenant').value; if(!tenant_id)return flash('err','Add a tenant first.');
+  const items=draftItems.filter(it=>it.description||it.unit_price); if(!items.length)return flash('err','Add at least one line item.');
+  const number='INV-'+Date.now().toString().slice(-6);
+  const { data, error } = await sb.from('invoices').insert({org_id:profile.org_id,tenant_id,lease_id:document.getElementById('i-lease').value||null,
+    number,due_date:val('i-due'),vat_pct:num('i-vat'),status:'sent'}).select().single();
+  if(error) return flash('err','invoice: '+error.message);
+  const rows=items.map(it=>({invoice_id:data.id,description:it.description,qty:it.qty,unit_price:it.unit_price}));
+  const { error:e2 } = await sb.from('invoice_items').insert(rows);
+  if(e2) return flash('err','items: '+e2.message);
+  draftItems=[{description:'',qty:1,unit_price:0}]; flash('ok','Invoice '+number+' created.'); renderTab();
+};
+
+/* ---------- small utils ---------- */
+function num(id){const v=document.getElementById(id); return v&&v.value!==''?parseFloat(v.value):null;}
+function val(id){const v=document.getElementById(id); return v&&v.value!==''?v.value:null;}
+</script>
+</body>
+</html>
