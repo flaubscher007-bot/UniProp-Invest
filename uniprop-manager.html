@@ -51,6 +51,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const CFG_KEY='uniprop:cfg';
 let sb=null, session=null, profile=null, orgName='', tab='dashboard', msg=null, draftItems=[{description:'',qty:1,unit_price:0}];
+let myOwner=null, ownerTab='properties';
 const app=()=>document.getElementById('app');
 const cfg=()=>{try{return JSON.parse(localStorage.getItem(CFG_KEY)||'null');}catch(e){return null;}};
 const money=n=>n==null?'—':'R'+Number(n).toLocaleString('en-ZA');
@@ -75,6 +76,8 @@ async function afterAuth(){
     if(error) throw error; profile=data;
   }catch(e){ profile={id:session.user.id,email:session.user.email,role:'tenant',org_id:null}; }
   if(profile&&profile.org_id){ try{ const {data}=await sb.from('organisations').select('name').eq('id',profile.org_id).single(); orgName=data?data.name:''; }catch(e){} }
+  myOwner=null;
+  if(!isStaffProfile()){ try{ const {data}=await sb.from('owners').select('*').eq('user_id',session.user.id).limit(1); myOwner=(data&&data[0])||null; }catch(e){} }
   render();
 }
 
@@ -143,27 +146,37 @@ async function insertRow(table, row){
 }
 
 /* ---------- main render ---------- */
+function isStaffProfile(){ return ['admin','manager','staff'].includes(profile?.role); }
+function appHeader(sub){ return `<header><div class="mark">U</div><h1 class="serif">UniProp${sub?' '+sub:''}</h1>
+    <div class="who">${esc(profile?.email||'')}<br><span class="pill">${esc(profile?.role||'—')}</span> · <button class="btn link" onclick="UP.signOut()">Sign out</button></div></header>`; }
 function render(){
   if(!session){ renderAuth(); return; }
-  const isStaff=['admin','manager','staff'].includes(profile?.role);
-  const header=`<header><div class="mark">U</div><h1 class="serif">UniProp Manager</h1>
-    <div class="who">${esc(profile?.email||'')}<br><span class="pill">${esc(profile?.role||'—')}</span> ${profile?.org_id?'':'· no org'} · <button class="btn link" onclick="UP.signOut()">Sign out</button></div></header>`;
-  if(!isStaff || !profile?.org_id){
-    app().innerHTML=header+`<main><div class="panel"><h2 class="serif">One more step</h2>
-      <p class="muted">Your login works, but you're not set as staff of an organisation yet, so there's nothing to manage. Run the <b>bootstrap</b> from migration 01 in the Supabase SQL Editor (replace the email with <b>${esc(profile?.email||'your email')}</b>):</p>
-      <pre style="white-space:pre-wrap;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:12px">insert into organisations (name) values ('UniProp');
-update profiles set role='admin',
-  org_id=(select id from organisations order by created_at desc limit 1)
-where email='${esc(profile?.email||'YOUR-EMAIL')}';</pre>
-      <p class="muted">Then sign out and back in.</p></div></main>`;
-    return;
-  }
-  const tabs=['dashboard','owners','properties','units','tenants','leases','invoices','payments','expenses','statements'];
+  if(isStaffProfile() && profile?.org_id) return renderManager();
+  if(myOwner) return renderOwner();
+  return renderUnlinked();
+}
+function renderManager(){
+  const tabs=['dashboard','owners','properties','units','tenants','leases','invoices','payments','expenses','statements','suppliers','maintenance'];
   const nav=`<nav>${tabs.map(t=>`<button class="tab ${tab===t?'active':''}" onclick="UP.go('${t}')">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</nav>`;
-  app().innerHTML=header+nav+`<main id="main">${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}<div class="panel"><p class="muted">Loading…</p></div></main>`;
+  app().innerHTML=appHeader('Manager')+nav+`<main id="main">${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}<div class="panel"><p class="muted">Loading…</p></div></main>`;
   renderTab();
 }
+function renderUnlinked(){
+  app().innerHTML=appHeader('')+`<main>
+    <div class="panel"><h2 class="serif">Welcome</h2>
+      <p class="muted">Your login works. If your property manager has added you as an <b>owner</b> using this email address, link your account to see your portfolio and monthly statements.</p>
+      ${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}
+      <button class="btn" onclick="UP.claimOwner()">Link my owner account</button></div>
+    <div class="panel"><p class="muted" style="font-size:12px">Setting up as the administrator instead? Run the bootstrap from migration 01 in Supabase (email <b>${esc(profile?.email||'')}</b>), then sign out and back in.</p></div>
+  </main>`;
+}
 window.UP.go=(t)=>{ tab=t; render(); };
+window.UP.claimOwner=async()=>{
+  const { data, error } = await sb.rpc('claim_owner');
+  if(error) return flash('err',error.message);
+  if(data){ flash('ok','Linked — loading your portfolio…'); await afterAuth(); }
+  else flash('err','No owner record found for your email. Ask your manager to add you as an owner using this email.');
+};
 
 async function renderTab(){
   const m=document.getElementById('main'); if(!m)return;
@@ -191,6 +204,8 @@ async function renderTab(){
   if(tab==='payments') return tabPayments(m,banner);
   if(tab==='expenses') return tabExpenses(m,banner);
   if(tab==='statements') return tabStatements(m,banner);
+  if(tab==='suppliers') return tabSuppliers(m,banner);
+  if(tab==='maintenance') return tabMaintenance(m,banner);
 }
 
 /* ---------- owners ---------- */
@@ -198,16 +213,16 @@ async function tabOwners(m,banner){
   const rows=await list('owners');
   m.innerHTML=banner+`<div class="panel"><h2 class="serif">Add owner</h2>
     <div class="frow"><div class="field"><label>Name</label><input id="o-name"></div><div class="field"><label>Email</label><input id="o-email"></div></div>
-    <div class="field"><label>Phone</label><input id="o-phone"></div>
+    <div class="frow"><div class="field"><label>Phone</label><input id="o-phone"></div><div class="field"><label>Management fee %</label><input id="o-fee" type="number" value="10"></div></div>
     <button class="btn" onclick="UP.addOwner()">Save owner</button></div>
     <div class="panel"><h2 class="serif">Owners (${rows.length})</h2>
-    <table><thead><tr><th>Name</th><th>Email</th><th>Phone</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.email||'')}</td><td>${esc(r.phone||'')}</td></tr>`).join('')||'<tr><td colspan=3 class="muted">None yet.</td></tr>'}
+    <table><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Fee %</th><th>Linked?</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.email||'')}</td><td>${esc(r.phone||'')}</td><td>${r.mgmt_fee_pct??10}%</td><td>${r.user_id?'<span class="pill">yes</span>':'<span class="muted">no</span>'}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">None yet.</td></tr>'}
     </tbody></table></div>`;
 }
 window.UP.addOwner=async()=>{
   const name=document.getElementById('o-name').value.trim(); if(!name)return flash('err','Owner name required.');
-  const ok=await insertRow('owners',{org_id:profile.org_id,name,email:document.getElementById('o-email').value.trim(),phone:document.getElementById('o-phone').value.trim()});
+  const ok=await insertRow('owners',{org_id:profile.org_id,name,email:document.getElementById('o-email').value.trim(),phone:document.getElementById('o-phone').value.trim(),mgmt_fee_pct:num('o-fee')??10});
   if(ok) renderTab();
 };
 
@@ -464,6 +479,186 @@ function openPrint(title, inner){
   const w=window.open('','_blank');
   if(w){ w.document.write(html); w.document.close(); setTimeout(()=>{w.focus();w.print();},400); }
   else flash('err','Allow pop-ups to generate the statement PDF.');
+}
+
+/* ---------- update helper ---------- */
+async function updateRow(table,id,patch){ const {error}=await sb.from(table).update(patch).eq('id',id); if(error){flash('err',table+': '+error.message);return false;} return true; }
+
+/* ---------- suppliers ---------- */
+const TRADES=['Plumber','Electrician','Handyman','Painter','Locksmith','Garden service','Pest control','Appliance repair','Cleaning','Builder','Roofer','Gas','HVAC','Security','Other'];
+async function tabSuppliers(m,banner){
+  const rows=await list('suppliers');
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Add supplier</h2>
+    <datalist id="tradelist">${TRADES.map(t=>`<option>${t}</option>`).join('')}</datalist>
+    <div class="frow"><div class="field"><label>Name</label><input id="s-name"></div><div class="field"><label>Trade</label><input id="s-trade" list="tradelist"></div></div>
+    <div class="frow3"><div class="field"><label>Phone</label><input id="s-phone"></div><div class="field"><label>Email</label><input id="s-email"></div><div class="field"><label>Area</label><input id="s-area"></div></div>
+    <div class="frow3"><div class="field"><label>Tax clearance?</label><select id="s-tax"><option value="false">No</option><option value="true">Yes</option></select></div>
+      <div class="field"><label>Insurance?</label><select id="s-ins"><option value="false">No</option><option value="true">Yes</option></select></div>
+      <div class="field"><label>Rating (1-5)</label><input id="s-rating" type="number" min="1" max="5"></div></div>
+    <div class="field"><label>Notes</label><input id="s-notes"></div>
+    <button class="btn" onclick="UP.addSupplier()">Save supplier</button></div>
+    <div class="panel"><h2 class="serif">Suppliers (${rows.length})</h2>
+    <table><thead><tr><th>Name</th><th>Trade</th><th>Area</th><th>Phone</th><th>Compliance</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.trade||'')}</td><td>${esc(r.area||'')}</td><td>${esc(r.phone||'')}</td><td>${r.tax_clearance?'<span class="pill">Tax</span> ':''}${r.insurance?'<span class="pill">Insured</span>':''}${!r.tax_clearance&&!r.insurance?'<span class="muted">—</span>':''}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.addSupplier=async()=>{
+  const name=document.getElementById('s-name').value.trim(); if(!name)return flash('err','Supplier name required.');
+  const ok=await insertRow('suppliers',{org_id:profile.org_id,name,trade:document.getElementById('s-trade').value.trim(),
+    phone:document.getElementById('s-phone').value.trim(),email:document.getElementById('s-email').value.trim(),
+    area:document.getElementById('s-area').value.trim(),tax_clearance:document.getElementById('s-tax').value==='true',
+    insurance:document.getElementById('s-ins').value==='true',rating:num('s-rating'),notes:document.getElementById('s-notes').value.trim()});
+  if(ok) renderTab();
+};
+
+/* ---------- maintenance + work orders ---------- */
+const REQ_STATUS=['open','assigned','in_progress','done','cancelled'];
+const WO_STATUS=['open','quoted','approved','in_progress','done','invoiced'];
+const PRIORITIES=['low','normal','high','urgent'];
+async function tabMaintenance(m,banner){
+  const [reqs,props,units,sups,wos]=await Promise.all([list('maintenance_requests'),list('properties'),list('units'),list('suppliers'),list('work_orders')]);
+  const pmap=Object.fromEntries(props.map(p=>[p.id,p.name||p.suburb||'']));
+  const umap=Object.fromEntries(units.map(u=>[u.id,u.name||'']));
+  const smap=Object.fromEntries(sups.map(s=>[s.id,s.name]));
+  const rmap=Object.fromEntries(reqs.map(r=>[r.id,(r.description||'').slice(0,40)]));
+  m.innerHTML=banner+`
+   <div class="panel"><h2 class="serif">Log maintenance request</h2>
+     <div class="frow"><div class="field"><label>Property</label><select id="mr-prop">${props.map(p=>`<option value="${p.id}">${esc(p.name||p.suburb||'property')}</option>`).join('')}</select></div>
+       <div class="field"><label>Unit (optional)</label><select id="mr-unit"><option value="">—</option>${units.map(u=>`<option value="${u.id}">${esc(u.name||'unit')} · ${esc(pmap[u.property_id]||'')}</option>`).join('')}</select></div></div>
+     <div class="frow"><div class="field"><label>Priority</label><select id="mr-pri">${PRIORITIES.map(p=>`<option ${p==='normal'?'selected':''}>${p}</option>`).join('')}</select></div>
+       <div class="field"><label>Status</label><select id="mr-status">${REQ_STATUS.map(s=>`<option>${s}</option>`).join('')}</select></div></div>
+     <div class="field"><label>Description</label><input id="mr-desc" placeholder="e.g. Geyser leaking in main bathroom"></div>
+     <button class="btn" onclick="UP.addRequest()">Log request</button></div>
+   <div class="panel"><h2 class="serif">Requests (${reqs.length})</h2>
+     <table><thead><tr><th>Property</th><th>Description</th><th>Priority</th><th>Status</th></tr></thead><tbody>
+     ${reqs.map(r=>`<tr><td>${esc(pmap[r.property_id]||'')}${r.unit_id?' · '+esc(umap[r.unit_id]||''):''}</td><td>${esc(r.description||'')}</td><td>${esc(r.priority||'')}</td>
+       <td><select onchange="UP.setReqStatus('${r.id}',this.value)">${REQ_STATUS.map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select></td></tr>`).join('')||'<tr><td colspan=4 class="muted">None yet.</td></tr>'}
+     </tbody></table></div>
+   <div class="panel"><h2 class="serif">Assign work order</h2>
+     <div class="frow"><div class="field"><label>Request</label><select id="wo-req"><option value="">—</option>${reqs.map(r=>`<option value="${r.id}">${esc((r.description||'request').slice(0,50))}</option>`).join('')}</select></div>
+       <div class="field"><label>Supplier</label><select id="wo-sup">${sups.map(s=>`<option value="${s.id}">${esc(s.name)}${s.trade?' ('+esc(s.trade)+')':''}</option>`).join('')}</select></div></div>
+     <div class="frow3"><div class="field"><label>Quote (R)</label><input id="wo-quote" type="number"></div>
+       <div class="field"><label>Scheduled date</label><input id="wo-date" type="date"></div>
+       <div class="field"><label>Status</label><select id="wo-status">${WO_STATUS.map(s=>`<option>${s}</option>`).join('')}</select></div></div>
+     <div class="field"><label>Notes</label><input id="wo-notes"></div>
+     <button class="btn" onclick="UP.addWorkOrder()">Create work order</button></div>
+   <div class="panel"><h2 class="serif">Work orders (${wos.length})</h2>
+     <table><thead><tr><th>Request</th><th>Supplier</th><th>Quote</th><th>Scheduled</th><th>Status</th></tr></thead><tbody>
+     ${wos.map(w=>`<tr><td>${esc(rmap[w.request_id]||'')}</td><td>${esc(smap[w.supplier_id]||'')}</td><td>${money(w.quote_amount)}</td><td>${w.scheduled_date||''}</td>
+       <td><select onchange="UP.setWoStatus('${w.id}',this.value)">${WO_STATUS.map(s=>`<option ${w.status===s?'selected':''}>${s}</option>`).join('')}</select></td></tr>`).join('')||'<tr><td colspan=5 class="muted">None yet.</td></tr>'}
+     </tbody></table></div>`;
+}
+window.UP.addRequest=async()=>{
+  const property_id=document.getElementById('mr-prop').value; if(!property_id)return flash('err','Add a property first.');
+  const description=document.getElementById('mr-desc').value.trim(); if(!description)return flash('err','Describe the issue.');
+  const ok=await insertRow('maintenance_requests',{org_id:profile.org_id,property_id,unit_id:document.getElementById('mr-unit').value||null,
+    raised_by:session.user.id,description,priority:document.getElementById('mr-pri').value,status:document.getElementById('mr-status').value});
+  if(ok) renderTab();
+};
+window.UP.addWorkOrder=async()=>{
+  const supplier_id=document.getElementById('wo-sup').value; if(!supplier_id)return flash('err','Add a supplier first.');
+  const ok=await insertRow('work_orders',{org_id:profile.org_id,request_id:document.getElementById('wo-req').value||null,supplier_id,
+    quote_amount:num('wo-quote'),scheduled_date:val('wo-date'),status:document.getElementById('wo-status').value,notes:document.getElementById('wo-notes').value.trim()});
+  if(ok) renderTab();
+};
+window.UP.setReqStatus=async(id,v)=>{ if(await updateRow('maintenance_requests',id,{status:v})) flash('ok','Request updated.'); };
+window.UP.setWoStatus=async(id,v)=>{ if(await updateRow('work_orders',id,{status:v})) flash('ok','Work order updated.'); };
+
+/* ---------- OWNER PORTAL (limited, read-only, RLS-scoped) ---------- */
+function renderOwner(){
+  const tabs=[['properties','My properties'],['income','Income'],['expenses','Expenses'],['statement','Statement'],['maintenance','Maintenance']];
+  const nav=`<nav>${tabs.map(([k,l])=>`<button class="tab ${ownerTab===k?'active':''}" onclick="UP.ogo('${k}')">${l}</button>`).join('')}</nav>`;
+  app().innerHTML=appHeader('Owner')+nav+`<main id="main">${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}<div class="panel"><p class="muted">Loading…</p></div></main>`;
+  ownerRenderTab();
+}
+window.UP.ogo=(t)=>{ ownerTab=t; renderOwner(); };
+async function ownerRenderTab(){
+  const m=document.getElementById('main'); if(!m)return;
+  const banner=msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:'';
+  if(ownerTab==='properties') return ownerProps(m,banner);
+  if(ownerTab==='income') return ownerIncome(m,banner);
+  if(ownerTab==='expenses') return ownerExpenses(m,banner);
+  if(ownerTab==='statement') return ownerStatement(m,banner);
+  if(ownerTab==='maintenance') return ownerMaint(m,banner);
+}
+async function ownerProps(m,banner){
+  const [props,units]=await Promise.all([list('properties'),list('units')]);
+  const byProp={}; units.forEach(u=>{(byProp[u.property_id]=byProp[u.property_id]||[]).push(u);});
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">My properties (${props.length})</h2>
+    ${props.map(p=>`<div style="border-bottom:1px solid var(--line);padding:10px 0">
+      <b>${esc(p.name||p.suburb||'Property')}</b> <span class="pill">${esc(p.property_type)}</span><br>
+      <span class="muted">${esc(p.address||p.suburb||'')}${p.valuation?' · valuation '+money(p.valuation):''}</span>
+      ${(byProp[p.id]||[]).map(u=>`<div class="muted" style="margin-left:12px">• ${esc(u.name||'unit')}${u.market_rent?' — rent '+money(u.market_rent):''}</div>`).join('')}
+    </div>`).join('')||'<p class="muted">No properties linked yet.</p>'}</div>`;
+}
+async function ownerIncome(m,banner){
+  const pays=await list('payments');
+  const tot=pays.reduce((s,p)=>s+Number(p.amount||0),0);
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Rental income</h2>
+    <p class="muted">Total received to date: <b>${money(tot)}</b></p>
+    <table><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Ref</th></tr></thead><tbody>
+    ${pays.map(p=>`<tr><td>${p.paid_at||''}</td><td>${money(p.amount)}</td><td>${esc(p.method||'')}</td><td>${esc(p.reference||'')}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">No payments yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+async function ownerExpenses(m,banner){
+  const exps=await list('expenses');
+  const tot=exps.reduce((s,e)=>s+Number(e.amount||0),0);
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Expenses</h2>
+    <p class="muted">Total to date: <b>${money(tot)}</b></p>
+    <table><thead><tr><th>Date</th><th>Category</th><th>Amount</th><th>Notes</th></tr></thead><tbody>
+    ${exps.map(e=>`<tr><td>${e.expense_date||''}</td><td>${esc(e.category||'')}</td><td>${money(e.amount)}</td><td>${esc(e.notes||'')}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">No expenses yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+async function ownerMaint(m,banner){
+  const reqs=await list('maintenance_requests');
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Maintenance</h2>
+    <table><thead><tr><th>Date</th><th>Description</th><th>Priority</th><th>Status</th></tr></thead><tbody>
+    ${reqs.map(r=>`<tr><td>${(r.created_at||'').slice(0,10)}</td><td>${esc(r.description||'')}</td><td>${esc(r.priority||'')}</td><td>${esc(r.status||'')}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">No requests logged.</td></tr>'}
+    </tbody></table></div>`;
+}
+async function ownerStatement(m,banner){
+  const mth=new Date().toISOString().slice(0,7);
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">My statement</h2>
+    <p class="muted">Generate your monthly income, expenses and net payout as a PDF.</p>
+    <div class="frow"><div class="field"><label>Month</label><input id="ost-month" type="month" value="${mth}"></div>
+      <div class="field" style="display:flex;align-items:flex-end"><button class="btn" onclick="UP.ownerStatement()">Generate statement</button></div></div></div>`;
+}
+window.UP.ownerStatement=async()=>{
+  const month=document.getElementById('ost-month').value; if(!month)return flash('err','Pick a month.');
+  await buildOwnerStatement(myOwner, month, Number(myOwner.mgmt_fee_pct||10));
+};
+async function buildOwnerStatement(owner, month, feePct){
+  const start=month+'-01';
+  const d=new Date(month+'-01T00:00:00'); const end=new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10);
+  const props=((await sb.from('properties').select('*').eq('owner_id',owner.id)).data)||[];
+  if(!props.length)return flash('err','No properties on this owner yet.');
+  const propIds=props.map(p=>p.id);
+  const units=((await sb.from('units').select('*').in('property_id',propIds)).data)||[];
+  const unitIds=units.map(u=>u.id);
+  let leases=[]; if(unitIds.length) leases=((await sb.from('leases').select('*').in('unit_id',unitIds)).data)||[];
+  const leaseIds=leases.map(l=>l.id);
+  let pays=[]; if(leaseIds.length) pays=((await sb.from('payments').select('*').in('lease_id',leaseIds).gte('paid_at',start).lte('paid_at',end)).data)||[];
+  const exps=((await sb.from('expenses').select('*').in('property_id',propIds).gte('expense_date',start).lte('expense_date',end)).data)||[];
+  const income=pays.reduce((s,p)=>s+Number(p.amount||0),0);
+  const expTot=exps.reduce((s,e)=>s+Number(e.amount||0),0);
+  const fee=income*feePct/100, net=income-expTot-fee;
+  const R=n=>'R'+Number(n||0).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const payRows=pays.map(p=>`<tr><td>${p.paid_at||''}</td><td>Rent received${p.reference?' ('+esc(p.reference)+')':''}</td><td class=r>${R(p.amount)}</td></tr>`).join('');
+  const expRows=exps.map(e=>`<tr><td>${e.expense_date||''}</td><td>${esc(e.category||'Expense')}${e.notes?' — '+esc(e.notes):''}</td><td class=r>-${R(e.amount)}</td></tr>`).join('');
+  const inner=`<h1>${esc(orgName||'UniProp')} — Owner Statement</h1>
+    <p class=muted>${esc(owner.name)} · ${month}</p>
+    <table><thead><tr><th>Date</th><th>Description</th><th class=r>Amount</th></tr></thead><tbody>
+    ${payRows||'<tr><td colspan=3 class=muted>No rent received this month.</td></tr>'}
+    ${expRows}
+    <tr><td></td><td>Management fee (${feePct}%)</td><td class=r>-${R(fee)}</td></tr>
+    </tbody><tfoot>
+    <tr><td></td><td class=r>Rent received</td><td class=r>${R(income)}</td></tr>
+    <tr><td></td><td class=r>Less expenses</td><td class=r>-${R(expTot)}</td></tr>
+    <tr><td></td><td class=r>Less management fee</td><td class=r>-${R(fee)}</td></tr>
+    <tr><td></td><td class=r><b>Net payout to owner</b></td><td class=r><b>${R(net)}</b></td></tr>
+    </tfoot></table>
+    <p class=muted style="margin-top:24px">Generated ${new Date().toLocaleString('en-ZA')}.</p>`;
+  openPrint('Owner Statement — '+owner.name+' '+month, inner);
 }
 
 /* ---------- small utils ---------- */
