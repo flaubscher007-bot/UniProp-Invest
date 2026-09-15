@@ -52,6 +52,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 const CFG_KEY='uniprop:cfg';
 let sb=null, session=null, profile=null, orgName='', tab='dashboard', msg=null, draftItems=[{description:'',qty:1,unit_price:0}];
 let myOwner=null, ownerTab='properties';
+let myTenant=null, tenantTab='lease';
 const app=()=>document.getElementById('app');
 const cfg=()=>{try{return JSON.parse(localStorage.getItem(CFG_KEY)||'null');}catch(e){return null;}};
 const money=n=>n==null?'—':'R'+Number(n).toLocaleString('en-ZA');
@@ -78,6 +79,8 @@ async function afterAuth(){
   if(profile&&profile.org_id){ try{ const {data}=await sb.from('organisations').select('name').eq('id',profile.org_id).single(); orgName=data?data.name:''; }catch(e){} }
   myOwner=null;
   if(!isStaffProfile()){ try{ const {data}=await sb.from('owners').select('*').eq('user_id',session.user.id).limit(1); myOwner=(data&&data[0])||null; }catch(e){} }
+  myTenant=null;
+  if(!isStaffProfile() && !myOwner){ try{ const {data}=await sb.from('tenants').select('*').eq('user_id',session.user.id).limit(1); myTenant=(data&&data[0])||null; }catch(e){} }
   render();
 }
 
@@ -153,6 +156,7 @@ function render(){
   if(!session){ renderAuth(); return; }
   if(isStaffProfile() && profile?.org_id) return renderManager();
   if(myOwner) return renderOwner();
+  if(myTenant) return renderTenant();
   return renderUnlinked();
 }
 function renderManager(){
@@ -164,9 +168,9 @@ function renderManager(){
 function renderUnlinked(){
   app().innerHTML=appHeader('')+`<main>
     <div class="panel"><h2 class="serif">Welcome</h2>
-      <p class="muted">Your login works. If your property manager has added you as an <b>owner</b> using this email address, link your account to see your portfolio and monthly statements.</p>
+      <p class="muted">Your login works. If your property manager has added you using this email address, link your account:</p>
       ${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}
-      <button class="btn" onclick="UP.claimOwner()">Link my owner account</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="UP.claimOwner()">I'm an owner — link</button><button class="btn ghost" onclick="UP.claimTenant()">I'm a tenant — link</button></div></div>
     <div class="panel"><p class="muted" style="font-size:12px">Setting up as the administrator instead? Run the bootstrap from migration 01 in Supabase (email <b>${esc(profile?.email||'')}</b>), then sign out and back in.</p></div>
   </main>`;
 }
@@ -176,6 +180,12 @@ window.UP.claimOwner=async()=>{
   if(error) return flash('err',error.message);
   if(data){ flash('ok','Linked — loading your portfolio…'); await afterAuth(); }
   else flash('err','No owner record found for your email. Ask your manager to add you as an owner using this email.');
+};
+window.UP.claimTenant=async()=>{
+  const { data, error } = await sb.rpc('claim_tenant');
+  if(error) return flash('err',error.message);
+  if(data){ flash('ok','Linked — loading your portal…'); await afterAuth(); }
+  else flash('err','No tenant record found for your email. Ask your manager to add you as a tenant using this email.');
 };
 
 async function renderTab(){
@@ -660,6 +670,74 @@ async function buildOwnerStatement(owner, month, feePct){
     <p class=muted style="margin-top:24px">Generated ${new Date().toLocaleString('en-ZA')}.</p>`;
   openPrint('Owner Statement — '+owner.name+' '+month, inner);
 }
+
+/* ---------- TENANT PORTAL (limited, RLS-scoped) ---------- */
+function renderTenant(){
+  const tabs=[['lease','My lease'],['invoices','Invoices'],['payments','Payments'],['maintenance','Maintenance']];
+  const nav=`<nav>${tabs.map(([k,l])=>`<button class="tab ${tenantTab===k?'active':''}" onclick="UP.tgo('${k}')">${l}</button>`).join('')}</nav>`;
+  app().innerHTML=appHeader('Tenant')+nav+`<main id="main">${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}<div class="panel"><p class="muted">Loading…</p></div></main>`;
+  tenantRenderTab();
+}
+window.UP.tgo=(t)=>{ tenantTab=t; renderTenant(); };
+async function tenantRenderTab(){
+  const m=document.getElementById('main'); if(!m)return;
+  const banner=msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:'';
+  if(tenantTab==='lease') return tenantLeaseView(m,banner);
+  if(tenantTab==='invoices') return tenantInvoicesView(m,banner);
+  if(tenantTab==='payments') return tenantPaymentsView(m,banner);
+  if(tenantTab==='maintenance') return tenantMaintView(m,banner);
+}
+async function tenantLeaseView(m,banner){
+  const [leases,units,props]=await Promise.all([list('leases'),list('units'),list('properties')]);
+  const umap=Object.fromEntries(units.map(u=>[u.id,u]));
+  const pmap=Object.fromEntries(props.map(p=>[p.id,p]));
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">My lease</h2>
+    ${leases.length?leases.map(l=>{const u=umap[l.unit_id]||{};const p=pmap[u.property_id]||{};return `<div style="border-bottom:1px solid var(--line);padding:10px 0">
+      <b>${esc(p.name||p.suburb||'Property')}</b>${u.name?' · '+esc(u.name):''} <span class="pill">${esc(l.status||'active')}</span><br>
+      <span class="muted">${esc(p.address||'')}</span><br>
+      <span class="muted">Rent ${money(l.rent)}${l.escalation_pct?' · escalation '+l.escalation_pct+'%':''} · deposit ${money(l.deposit)}</span><br>
+      <span class="muted">${l.start_date||'?'} → ${l.end_date||'?'}</span>
+    </div>`;}).join(''):'<p class="muted">No active lease linked to your account yet.</p>'}
+  </div>`;
+}
+async function tenantInvoicesView(m,banner){
+  const [tot,pays]=await Promise.all([invoiceTotalsMap(),list('payments')]);
+  const deb=tot.invs.filter(i=>['sent','paid','overdue'].includes(i.status)).reduce((s,i)=>s+((tot.totals[i.id]&&tot.totals[i.id].total)||0),0);
+  const cred=pays.reduce((s,p)=>s+Number(p.amount||0),0);
+  const bal=deb-cred;
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Account balance</h2>
+    <p class="muted">Invoiced ${money(deb)} · Paid ${money(cred)} · <b style="color:${bal>0.5?'#a94b3d':'#134c38'}">${bal>0.5?'You owe ':bal<-0.5?'In credit ':'Settled '}${money(Math.abs(bal))}</b></p></div>
+    <div class="panel"><h2 class="serif">Invoices (${tot.invs.length})</h2>
+    <table><thead><tr><th>Number</th><th>Issued</th><th>Due</th><th>Total</th><th>Status</th></tr></thead><tbody>
+    ${tot.invs.map(i=>`<tr><td>${esc(i.number)}</td><td>${i.issue_date||''}</td><td>${i.due_date||''}</td><td>${money((tot.totals[i.id]&&tot.totals[i.id].total)||0)}</td><td>${esc(i.status)}</td></tr>`).join('')||'<tr><td colspan=5 class="muted">No invoices yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+async function tenantPaymentsView(m,banner){
+  const pays=await list('payments');
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">My payments</h2>
+    <table><thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th></tr></thead><tbody>
+    ${pays.map(p=>`<tr><td>${p.paid_at||''}</td><td>${money(p.amount)}</td><td>${esc(p.method||'')}</td><td>${esc(p.reference||'')}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">No payments recorded yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+async function tenantMaintView(m,banner){
+  const reqs=await list('maintenance_requests');
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Log a maintenance request</h2>
+    <div class="frow"><div class="field"><label>Priority</label><select id="tm-pri"><option>low</option><option selected>normal</option><option>high</option><option>urgent</option></select></div>
+      <div class="field" style="display:flex;align-items:flex-end"><button class="btn" onclick="UP.logMaint()">Submit request</button></div></div>
+    <div class="field"><label>Describe the issue</label><input id="tm-desc" placeholder="e.g. Kitchen tap is leaking"></div></div>
+    <div class="panel"><h2 class="serif">My requests (${reqs.length})</h2>
+    <table><thead><tr><th>Date</th><th>Description</th><th>Priority</th><th>Status</th></tr></thead><tbody>
+    ${reqs.map(r=>`<tr><td>${(r.created_at||'').slice(0,10)}</td><td>${esc(r.description||'')}</td><td>${esc(r.priority||'')}</td><td>${esc(r.status||'')}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.logMaint=async()=>{
+  const desc=document.getElementById('tm-desc').value.trim(); if(!desc)return flash('err','Describe the issue.');
+  const pri=document.getElementById('tm-pri').value;
+  const { data, error } = await sb.rpc('log_maintenance',{p_description:desc,p_priority:pri});
+  if(error) return flash('err',error.message);
+  if(data){ flash('ok','Request submitted.'); tenantRenderTab(); }
+  else flash('err','Could not submit — no active lease found on your account.');
+};
 
 /* ---------- small utils ---------- */
 function num(id){const v=document.getElementById(id); return v&&v.value!==''?parseFloat(v.value):null;}
