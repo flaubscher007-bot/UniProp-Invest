@@ -166,14 +166,16 @@ function render(){
 function tabsForRole(){
   const r=profile.role;
   const all=['dashboard','owners','properties','units','tenants','leases','invoices','payments','expenses','statements','suppliers','maintenance','documents','opportunities','team'];
-  if(r==='director'||r==='admin') return all;
-  if(r==='property_manager'||r==='manager') return all.filter(t=>t!=='team');
-  if(r==='maintenance_manager') return ['dashboard','properties','units','suppliers','maintenance','documents'];
-  if(r==='maintenance_staff') return ['dashboard','maintenance','suppliers'];
-  if(r==='finance_debtors') return ['dashboard','tenants','leases','invoices','payments','statements','documents'];
-  if(r==='finance_creditors') return ['dashboard','expenses','suppliers','payments','statements','documents'];
-  if(r==='sales') return ['dashboard','opportunities','owners','properties'];
-  return ['dashboard'];
+  let base;
+  if(r==='director'||r==='admin') base=all;
+  else if(r==='property_manager'||r==='manager') base=all.filter(t=>t!=='team');
+  else if(r==='maintenance_manager') base=['dashboard','properties','units','suppliers','maintenance','documents'];
+  else if(r==='maintenance_staff') base=['dashboard','maintenance','suppliers'];
+  else if(r==='finance_debtors') base=['dashboard','tenants','leases','invoices','payments','statements','documents'];
+  else if(r==='finance_creditors') base=['dashboard','expenses','suppliers','payments','statements','documents'];
+  else if(r==='sales') base=['dashboard','opportunities','owners','properties'];
+  else base=['dashboard'];
+  return base.concat('help');
 }
 function renderManager(){
   const tabs=tabsForRole();
@@ -236,6 +238,7 @@ async function renderTab(){
   if(tab==='documents') return tabDocuments(m,banner);
   if(tab==='opportunities') return tabOpportunities(m,banner);
   if(tab==='team') return tabTeam(m,banner);
+  if(tab==='help') return tabHelp(m,banner);
 }
 
 /* ---------- owners ---------- */
@@ -839,18 +842,23 @@ const STRATEGIES=[
 async function tabOpportunities(m,banner){
   const rows=await list('opportunities');
   const OPP_STATUS=['watching','researching','viewing','offer','bought','passed'];
-  const cards=STRATEGIES.map(s=>`<details class="panel" style="box-shadow:none;border:1px solid var(--line)">
+  const cards=STRATEGIES.map((s,i)=>`<details class="panel" style="box-shadow:none;border:1px solid var(--line)">
     <summary style="cursor:pointer;font-weight:600"><span class="serif" style="font-size:16px">${esc(s.name)}</span> <span class="pill">${esc(s.tag)}</span> <span class="muted">· ${esc(s.capital)}</span></summary>
     <p class="muted" style="margin-top:8px">${esc(s.summary)}</p>
     <b style="font-size:13px">How to buy</b>
     <ol style="margin:6px 0 8px;padding-left:18px;font-size:13px">${s.steps.map(x=>`<li style="margin-bottom:3px">${esc(x)}</li>`).join('')}</ol>
     <b style="font-size:13px">Where to search</b>
     <div style="margin-top:4px">${s.links.map(([l,u])=>`<a href="${u}" target="_blank" rel="noopener" style="margin-right:12px">${esc(l)} ↗</a>`).join('')}</div>
+    <button class="btn mini" style="margin-top:8px" onclick="UP.oppSearchStrat(${i})">🔎 Recent web results (last 3 months)</button>
   </details>`).join('');
   return void (m.innerHTML=banner+`
     <div class="panel"><h2 class="serif">Find investment opportunities</h2>
       <p class="muted">Curated strategies with step‑by‑step buying guides and links to the right search portals — local and international. Save anything you find to your watchlist below.</p>
       <p class="muted" style="font-size:12px">Not financial advice — do your own due diligence and use qualified professionals (especially for cross‑border deals).</p></div>
+    <div class="panel"><h2 class="serif">Search the web (last 3 months)</h2>
+      <div class="frow"><div class="field"><label>What are you looking for?</label><input id="opp-q" placeholder="e.g. 2‑bed near NWU under R850k / case 1 euro Sicily"></div>
+        <div class="field" style="display:flex;align-items:flex-end"><button class="btn" onclick="UP.oppSearch()">🔎 Search Google</button></div></div>
+      <p class="muted" style="font-size:12px">Opens Google’s results filtered to the last 3 months in a new tab — each strategy below also has its own recent‑results button. <b>Note:</b> an in‑app AI‑rated top‑20 with match scores needs a small backend + search API (cost/quota) — ask me to enable it.</p></div>
     ${cards}
     <div class="panel"><h2 class="serif">Add to watchlist</h2>
       <div class="frow"><div class="field"><label>Title</label><input id="op-title" placeholder="e.g. 2-bed near NWU / €1 home Mussomeli"></div>
@@ -987,6 +995,36 @@ window.UP.mfaChallenge=async()=>{
     await afterAuth();
   }catch(e){ flash('err','Code invalid — try again.'); }
 };
+
+/* ---------- opportunity web search + help ---------- */
+function stratQuery(s){
+  const n=(s.name||'').toLowerCase();
+  if(n.includes('€1')||n.includes('euro')) return 'case a 1 euro Italy one euro houses for sale';
+  if(n.includes('student')) return '2 bedroom apartment for sale near university South Africa';
+  if(n.includes('auction')||n.includes('repossessed')||n.includes('distressed')) return 'bank repossessed property auction for sale South Africa';
+  if(n.includes('commercial')||n.includes('industrial')) return 'commercial industrial property for sale South Africa';
+  if(n.includes('international')) return 'buy to let property for sale Europe idealista';
+  if(n.includes('reit')) return 'JSE listed property REIT invest South Africa';
+  return 'investment property for sale buy to let South Africa';
+}
+function webSearchRecent(q){ window.open('https://www.google.com/search?q='+encodeURIComponent(q)+'&tbs=qdr:m3','_blank'); }
+window.UP.oppSearch=()=>{ const q=((document.getElementById('opp-q')||{}).value||'').trim(); if(!q)return flash('err','Type what to search for.'); webSearchRecent(q); };
+window.UP.oppSearchStrat=(i)=>{ webSearchRecent(stratQuery(STRATEGIES[i])); };
+
+async function tabHelp(m,banner){
+  const g=(title,steps)=>`<details class="panel" style="box-shadow:none;border:1px solid var(--line)"><summary class="serif" style="cursor:pointer;font-weight:600;font-size:15px">${title}</summary><ol style="padding-left:18px;font-size:13.5px;margin:8px 0">${steps.map(s=>`<li style="margin-bottom:4px">${s}</li>`).join('')}</ol></details>`;
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Help &amp; training</h2><p class="muted">Step‑by‑step guides for everyday tasks. Tap a topic to expand.</p></div>
+   ${g('Getting started & signing in',['Open the app link your manager gave you.','First time on a device: paste the Supabase URL and anon key (staff will provide these).','Sign in with your email and password.','Staff: set up MFA — scan the QR with Google Authenticator or Authy, then enter the 6‑digit code. You’ll enter a code at each login after that.'])}
+   ${g('Add a property (owner → property → unit)',['Owners tab → name, email, phone, management fee → Save owner.','Properties tab → choose the owner, set type (residential/commercial/industrial), address and valuation → Save.','Units tab → choose the property → unit details and market rent → Save.'])}
+   ${g('Set up a tenant & lease',['Tenants tab → tenant name, ID, email, phone → Save.','Leases tab → pick the unit and tenant, set rent, escalation, deposit and dates → Save lease.'])}
+   ${g('Invoicing & payments',['Invoices tab → pick the tenant, add line items (rent + charges), set due date/VAT → Create & mark sent.','Payments tab → record a payment against the tenant/lease. The Tenant balances table shows who owes what.'])}
+   ${g('Monthly owner statement',['Expenses tab → capture the property’s expenses for the month.','Statements tab → choose owner + month + fee % → Generate. A PDF opens (allow pop‑ups): rent received − expenses − fee = owner payout.'])}
+   ${g('Maintenance & suppliers',['Suppliers tab → add vendors with trade, contact and tax/insurance flags.','Maintenance tab → log a request against a property, assign a work order to a supplier, and update the status as the job moves.'])}
+   ${g('Documents',['Documents tab → choose the type (lease, ID, proof of banking…), link it to the owner/tenant/property, choose the file → Upload.','Download opens a secure, short‑lived link. Files stay private to your organisation.'])}
+   ${g('Team & access (directors)',['Team tab → invite by email + role; for owners/tenants/suppliers, link them to their record.','They register with that email and tap “I was invited — request access”.','Approve them under Pending approvals. Revoke access anytime.'])}
+   ${g('Finding opportunities',['Opportunities tab → open a strategy card for how‑to‑buy steps and search links.','Use “Search the web (last 3 months)” or a strategy’s “Recent web results” to open fresh listings in a new tab.','Save promising deals to your watchlist and track their status.'])}
+   <div class="panel"><p class="muted" style="font-size:12px">Want real screenshots beside each step? Capture them from your live app and send them to me to wire in, or drop them into the repo — I’ll reference them here.</p></div>`;
+}
 
 /* ---------- small utils ---------- */
 function num(id){const v=document.getElementById(id); return v&&v.value!==''?parseFloat(v.value):null;}
