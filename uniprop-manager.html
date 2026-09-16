@@ -81,6 +81,7 @@ async function afterAuth(){
   if(!isStaffProfile()){ try{ const {data}=await sb.from('owners').select('*').eq('user_id',session.user.id).limit(1); myOwner=(data&&data[0])||null; }catch(e){} }
   myTenant=null;
   if(!isStaffProfile() && !myOwner){ try{ const {data}=await sb.from('tenants').select('*').eq('user_id',session.user.id).limit(1); myTenant=(data&&data[0])||null; }catch(e){} }
+  if(isStaffProfile() && profile.org_id){ if(await gateMfa()) return; }
   render();
 }
 
@@ -149,7 +150,9 @@ async function insertRow(table, row){
 }
 
 /* ---------- main render ---------- */
-function isStaffProfile(){ return ['admin','manager','staff'].includes(profile?.role); }
+const STAFF_ROLES=['admin','director','property_manager','manager','maintenance_manager','maintenance_staff','finance_debtors','finance_creditors','sales'];
+const ALL_ROLES=['director','property_manager','maintenance_manager','maintenance_staff','finance_debtors','finance_creditors','sales','owner','tenant','supplier'];
+function isStaffProfile(){ return STAFF_ROLES.includes(profile?.role); }
 function appHeader(sub){ return `<header><div class="mark">U</div><h1 class="serif">UniProp${sub?' '+sub:''}</h1>
     <div class="who">${esc(profile?.email||'')}<br><span class="pill">${esc(profile?.role||'—')}</span> · <button class="btn link" onclick="UP.signOut()">Sign out</button></div></header>`; }
 function render(){
@@ -157,10 +160,24 @@ function render(){
   if(isStaffProfile() && profile?.org_id) return renderManager();
   if(myOwner) return renderOwner();
   if(myTenant) return renderTenant();
+  if(profile?.role==='pending') return renderPending();
   return renderUnlinked();
 }
+function tabsForRole(){
+  const r=profile.role;
+  const all=['dashboard','owners','properties','units','tenants','leases','invoices','payments','expenses','statements','suppliers','maintenance','documents','opportunities','team'];
+  if(r==='director'||r==='admin') return all;
+  if(r==='property_manager'||r==='manager') return all.filter(t=>t!=='team');
+  if(r==='maintenance_manager') return ['dashboard','properties','units','suppliers','maintenance','documents'];
+  if(r==='maintenance_staff') return ['dashboard','maintenance','suppliers'];
+  if(r==='finance_debtors') return ['dashboard','tenants','leases','invoices','payments','statements','documents'];
+  if(r==='finance_creditors') return ['dashboard','expenses','suppliers','payments','statements','documents'];
+  if(r==='sales') return ['dashboard','opportunities','owners','properties'];
+  return ['dashboard'];
+}
 function renderManager(){
-  const tabs=['dashboard','owners','properties','units','tenants','leases','invoices','payments','expenses','statements','suppliers','maintenance'];
+  const tabs=tabsForRole();
+  if(!tabs.includes(tab)) tab=tabs[0];
   const nav=`<nav>${tabs.map(t=>`<button class="tab ${tab===t?'active':''}" onclick="UP.go('${t}')">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</nav>`;
   app().innerHTML=appHeader('Manager')+nav+`<main id="main">${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}<div class="panel"><p class="muted">Loading…</p></div></main>`;
   renderTab();
@@ -170,7 +187,7 @@ function renderUnlinked(){
     <div class="panel"><h2 class="serif">Welcome</h2>
       <p class="muted">Your login works. If your property manager has added you using this email address, link your account:</p>
       ${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="UP.claimOwner()">I'm an owner — link</button><button class="btn ghost" onclick="UP.claimTenant()">I'm a tenant — link</button></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="UP.requestAccess()">I was invited — request access</button><button class="btn ghost" onclick="UP.claimOwner()">I'm an owner</button><button class="btn ghost" onclick="UP.claimTenant()">I'm a tenant</button></div></div>
     <div class="panel"><p class="muted" style="font-size:12px">Setting up as the administrator instead? Run the bootstrap from migration 01 in Supabase (email <b>${esc(profile?.email||'')}</b>), then sign out and back in.</p></div>
   </main>`;
 }
@@ -216,6 +233,9 @@ async function renderTab(){
   if(tab==='statements') return tabStatements(m,banner);
   if(tab==='suppliers') return tabSuppliers(m,banner);
   if(tab==='maintenance') return tabMaintenance(m,banner);
+  if(tab==='documents') return tabDocuments(m,banner);
+  if(tab==='opportunities') return tabOpportunities(m,banner);
+  if(tab==='team') return tabTeam(m,banner);
 }
 
 /* ---------- owners ---------- */
@@ -737,6 +757,235 @@ window.UP.logMaint=async()=>{
   if(error) return flash('err',error.message);
   if(data){ flash('ok','Request submitted.'); tenantRenderTab(); }
   else flash('err','Could not submit — no active lease found on your account.');
+};
+
+/* ---------- documents (Supabase Storage) ---------- */
+const DOC_TYPES=['Lease agreement','ID / passport','Proof of banking','Reference','Ingoing/outgoing inspection','Invoice / receipt','Compliance certificate','Other'];
+async function tabDocuments(m,banner){
+  const [docs,owners,props,leases,tenants]=await Promise.all([list('documents'),list('owners'),list('properties'),list('leases'),list('tenants')]);
+  const om=Object.fromEntries(owners.map(o=>[o.id,o.name]));
+  const pm=Object.fromEntries(props.map(p=>[p.id,p.name||p.suburb||'']));
+  const tm=Object.fromEntries(tenants.map(t=>[t.id,t.name]));
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Upload document</h2>
+    <div class="frow"><div class="field"><label>Type</label><select id="doc-type">${DOC_TYPES.map(d=>`<option>${d}</option>`).join('')}</select></div>
+      <div class="field"><label>File</label><input type="file" id="doc-file"></div></div>
+    <div class="frow"><div class="field"><label>Link to owner</label><select id="doc-owner"><option value="">—</option>${owners.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Link to tenant</label><select id="doc-tenant"><option value="">—</option>${tenants.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div></div>
+    <div class="frow"><div class="field"><label>Link to property</label><select id="doc-prop"><option value="">—</option>${props.map(p=>`<option value="${p.id}">${esc(p.name||p.suburb||'property')}</option>`).join('')}</select></div>
+      <div class="field"><label>Link to lease</label><select id="doc-lease"><option value="">—</option>${leases.map(l=>`<option value="${l.id}">${esc(tm[l.tenant_id]||'lease')} · ${money(l.rent)}</option>`).join('')}</select></div></div>
+    <button class="btn" onclick="UP.uploadDoc()">Upload</button>
+    <p class="muted" style="font-size:12px;margin-top:8px">Files are private to your organisation. Pick the type and link it to whoever it belongs to (e.g. proof of banking → the tenant).</p></div>
+    <div class="panel"><h2 class="serif">Documents (${docs.length})</h2>
+    <table><thead><tr><th>Date</th><th>Type</th><th>Linked to</th><th></th></tr></thead><tbody>
+    ${docs.map(d=>{const link=[d.owner_id?om[d.owner_id]:null,d.tenant_id?tm[d.tenant_id]:null,d.property_id?pm[d.property_id]:null].filter(Boolean).join(', ');return `<tr><td>${(d.created_at||'').slice(0,10)}</td><td>${esc(d.doc_type||'')}</td><td>${esc(link||'—')}</td><td><button class="btn link" onclick="UP.docDownload('${esc(d.storage_path)}')">Download</button></td></tr>`;}).join('')||'<tr><td colspan=4 class="muted">None yet.</td></tr>'}
+    </tbody></table></div>`;
+}
+window.UP.uploadDoc=async()=>{
+  const fileEl=document.getElementById('doc-file'); const file=fileEl&&fileEl.files&&fileEl.files[0];
+  if(!file)return flash('err','Choose a file to upload.');
+  const safe=file.name.replace(/[^\w.\-]+/g,'_');
+  const path=`${profile.org_id}/${Date.now()}_${safe}`;
+  const { error:upErr } = await sb.storage.from('docs').upload(path,file);
+  if(upErr) return flash('err','Upload failed: '+upErr.message);
+  const ok=await insertRow('documents',{org_id:profile.org_id,doc_type:document.getElementById('doc-type').value,
+    owner_id:document.getElementById('doc-owner').value||null,tenant_id:document.getElementById('doc-tenant').value||null,
+    property_id:document.getElementById('doc-prop').value||null,lease_id:document.getElementById('doc-lease').value||null,
+    storage_path:path,uploaded_by:session.user.id});
+  if(ok){ flash('ok','Uploaded.'); renderTab(); }
+};
+window.UP.docDownload=async(path)=>{
+  const { data, error } = await sb.storage.from('docs').createSignedUrl(path,120);
+  if(error) return flash('err',error.message);
+  window.open(data.signedUrl,'_blank');
+};
+
+/* ---------- investment opportunities (strategy guides + watchlist) ---------- */
+const STRATEGIES=[
+ {name:'SA student accommodation', tag:'Local', capital:'~R450k–R1.2m / unit',
+  summary:'Buy near universities (NWU Potchefstroom, UP, Stellenbosch, TUT, UJ…) and let to students. Strong, recurring demand; manage holiday vacancies, wear, and per-room letting. Family‑suitable 2‑beds resell more easily than pure student stock.',
+  steps:['Pick a campus node with undersupply and good transport.','Target a secure 2‑bed within ~2 km / walking distance.','Confirm the body corporate allows student letting & short leases.','Model yield: rent vs bond + levies + rates + vacancy + maintenance.','Consider NSFAS‑accredited student housing for volume tenancies.','Get bond pre‑approval, then make an offer.','Due diligence: levies, special levies, occupancy, rules.','Transfer via conveyancer; furnish and let (often per room).'],
+  links:[['Property24','https://www.property24.com'],['Private Property','https://www.privateproperty.co.za'],['ooba (bond pre‑approval)','https://www.ooba.co.za']]},
+
+ {name:'Italy €1 homes (Case a 1 euro)', tag:'International', capital:'€1 price · real cost ~€30k–€150k+',
+  summary:'Symbolic €1 homes in depopulated Italian towns (Sicily, Calabria, Sardinia) in exchange for a binding renovation. It’s a lifestyle / renovation project, not a yield play — the real money is the restoration. Foreigners are eligible; buying a home gives no right to live there (non‑EU need a visa).',
+  steps:['Choose a comune (municipality) running a “Case a 1 euro” scheme.','Download and read the bando (public notice): rules, deposit, deadlines, penalties.','Hire a geometra (surveyor) + local lawyer to check the property & title.','Submit your application + a renovation plan (often within 12 months).','Get an Italian tax code (codice fiscale).','Sign the €1 deed (rogito) at a notaio, plus the renovation commitment contract.','Pay the security deposit/bond (~€2,000–€10,000; often €5,000 for 3 yrs — some towns take annual insurance instead).','Complete the renovation in 2–3 years, get compliance certificates, deposit returned. Renovation tax deductions (Bonus Ristrutturazioni) may apply.'],
+  links:[['idealista (Italy)','https://www.idealista.it/en/'],['1eurohouses.com','https://www.1eurohouses.com'],['immobiliare.it','https://www.immobiliare.it']]},
+
+ {name:'SA residential buy‑to‑let', tag:'Local', capital:'~R700k–R2m',
+  summary:'The classic rental. Steady demand in the right areas; the whole game is yield vs bond and choosing tenant‑ready suburbs.',
+  steps:['Get bond pre‑approval to know your ceiling.','Target an area with proven rental demand and low vacancy.','Model net yield (rent vs bond, levies, rates, vacancy, management).','Offer, then due diligence on the sectional/HOA figures.','Conveyancing transfer; let via a compliant lease.'],
+  links:[['Property24','https://www.property24.com'],['Private Property','https://www.privateproperty.co.za']]},
+
+ {name:'Distressed / auction / bank‑repossessed (SA)', tag:'Local', capital:'Often below market',
+  summary:'Below‑market buys via bank repossessions and sheriff/insolvency auctions. Higher risk — properties may be occupied, in arrears or poor condition. Do serious due diligence and set a hard ceiling.',
+  steps:['Monitor auction houses and banks’ repossessed lists.','Register / qualify to bid; read the conditions of sale.','Inspect; get rates/levy clearance and arrears figures.','Check occupancy and eviction risk before bidding.','Set a firm maximum — auction fever is real.','Bid; pay deposit + commission on the fall of the hammer.','Fund the balance and transfer.'],
+  links:[['ClareMart Auctions','https://www.claremart.co.za'],['Park Village Auctions','https://www.parkvillageauctions.co.za'],['High Street Auctions','https://www.highstreetauctions.com'],['In2Assets','https://www.in2assets.com']]},
+
+ {name:'Commercial & industrial (SA)', tag:'Local', capital:'R1m+',
+  summary:'Higher yields than residential, often triple‑net (tenant pays rates, insurance, maintenance). VAT applies, leases are longer, and tenant quality (the covenant) matters more than the building.',
+  steps:['Assess the covenant — who the tenant is and how secure.','Check lease terms, escalations, remaining term, GLA.','Confirm zoning and any environmental/compliance issues.','Model net yield after recoveries; arrange funding (often larger deposit).','Due diligence + transfer.'],
+  links:[['Property24 Commercial','https://www.property24.com/commercial-property-for-sale'],['In2Assets','https://www.in2assets.com']]},
+
+ {name:'International buy‑to‑let (Europe)', tag:'International', capital:'Varies by market',
+  summary:'Resale rental / holiday‑let in markets like Portugal, Spain and Italy. Understand foreign‑buyer rules, local taxes and currency risk — always use a local lawyer.',
+  steps:['Pick a market and understand foreign‑buyer rules & taxes.','Engage a local agent + independent lawyer.','Get the local tax number.','Make an offer; sign the preliminary contract + deposit (Italy: compromesso, 10–30%).','Complete at the notary; register ownership.'],
+  links:[['idealista','https://www.idealista.com'],['Kyero','https://www.kyero.com'],['Rightmove Overseas','https://www.rightmove.co.uk/overseas-property.html'],['Green‑Acres','https://www.green-acres.com']]},
+
+ {name:'REITs / fractional (low‑effort exposure)', tag:'Local & Intl', capital:'From a few hundred rand',
+  summary:'Property exposure without buying or managing anything — JSE‑listed REITs or fractional platforms. Liquid, diversified, hands‑off; good for parking capital between deals.',
+  steps:['Open a brokerage / tax‑free savings account.','Research REITs across sectors (retail, industrial/logistics, offshore).','Diversify rather than single‑stock; reinvest distributions.'],
+  links:[['EasyEquities','https://www.easyequities.co.za'],['JSE','https://www.jse.co.za']]},
+];
+async function tabOpportunities(m,banner){
+  const rows=await list('opportunities');
+  const OPP_STATUS=['watching','researching','viewing','offer','bought','passed'];
+  const cards=STRATEGIES.map(s=>`<details class="panel" style="box-shadow:none;border:1px solid var(--line)">
+    <summary style="cursor:pointer;font-weight:600"><span class="serif" style="font-size:16px">${esc(s.name)}</span> <span class="pill">${esc(s.tag)}</span> <span class="muted">· ${esc(s.capital)}</span></summary>
+    <p class="muted" style="margin-top:8px">${esc(s.summary)}</p>
+    <b style="font-size:13px">How to buy</b>
+    <ol style="margin:6px 0 8px;padding-left:18px;font-size:13px">${s.steps.map(x=>`<li style="margin-bottom:3px">${esc(x)}</li>`).join('')}</ol>
+    <b style="font-size:13px">Where to search</b>
+    <div style="margin-top:4px">${s.links.map(([l,u])=>`<a href="${u}" target="_blank" rel="noopener" style="margin-right:12px">${esc(l)} ↗</a>`).join('')}</div>
+  </details>`).join('');
+  return void (m.innerHTML=banner+`
+    <div class="panel"><h2 class="serif">Find investment opportunities</h2>
+      <p class="muted">Curated strategies with step‑by‑step buying guides and links to the right search portals — local and international. Save anything you find to your watchlist below.</p>
+      <p class="muted" style="font-size:12px">Not financial advice — do your own due diligence and use qualified professionals (especially for cross‑border deals).</p></div>
+    ${cards}
+    <div class="panel"><h2 class="serif">Add to watchlist</h2>
+      <div class="frow"><div class="field"><label>Title</label><input id="op-title" placeholder="e.g. 2-bed near NWU / €1 home Mussomeli"></div>
+        <div class="field"><label>Strategy</label><select id="op-type">${STRATEGIES.map(s=>`<option>${esc(s.name)}</option>`).join('')}<option>Other</option></select></div></div>
+      <div class="frow3"><div class="field"><label>Location</label><input id="op-loc"></div>
+        <div class="field"><label>Country</label><input id="op-country" value="South Africa"></div>
+        <div class="field"><label>Price</label><input id="op-price" type="number"></div></div>
+      <div class="frow"><div class="field"><label>Currency</label><select id="op-cur"><option>ZAR</option><option>EUR</option><option>GBP</option><option>USD</option></select></div>
+        <div class="field"><label>Listing URL</label><input id="op-url" placeholder="https://..."></div></div>
+      <div class="field"><label>Notes</label><input id="op-notes"></div>
+      <button class="btn" onclick="UP.addOpp()">Save to watchlist</button></div>
+    <div class="panel"><h2 class="serif">Watchlist (${rows.length})</h2>
+      <table><thead><tr><th>Title</th><th>Where</th><th>Price</th><th>Status</th><th></th></tr></thead><tbody>
+      ${rows.map(r=>`<tr><td>${esc(r.title)}${r.url?` · <a href="${esc(r.url)}" target="_blank" rel="noopener">open ↗</a>`:''}<div class="muted" style="font-size:11px">${esc(r.type||'')}</div></td>
+        <td>${esc([r.location,r.country].filter(Boolean).join(', '))}</td>
+        <td>${r.price!=null?esc(r.currency||'')+' '+Number(r.price).toLocaleString():'—'}</td>
+        <td><select onchange="UP.setOppStatus('${r.id}',this.value)">${OPP_STATUS.map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select></td>
+        <td><button class="btn link" onclick="UP.delOpp('${r.id}')">delete</button></td></tr>`).join('')||'<tr><td colspan=5 class="muted">Nothing saved yet.</td></tr>'}
+      </tbody></table></div>`);
+}
+window.UP.addOpp=async()=>{
+  const title=document.getElementById('op-title').value.trim(); if(!title)return flash('err','Give it a title.');
+  const ok=await insertRow('opportunities',{org_id:profile.org_id,title,type:document.getElementById('op-type').value,
+    location:document.getElementById('op-loc').value.trim(),country:document.getElementById('op-country').value.trim(),
+    price:num('op-price'),currency:document.getElementById('op-cur').value,url:document.getElementById('op-url').value.trim(),
+    notes:document.getElementById('op-notes').value.trim(),status:'watching',created_by:session.user.id});
+  if(ok){ flash('ok','Saved to watchlist.'); renderTab(); }
+};
+window.UP.setOppStatus=async(id,v)=>{ if(await updateRow('opportunities',id,{status:v})) flash('ok','Updated.'); };
+window.UP.delOpp=async(id)=>{ if(!confirm('Remove from watchlist?'))return; const {error}=await sb.from('opportunities').delete().eq('id',id); if(error)return flash('err',error.message); flash('ok','Removed.'); renderTab(); };
+
+/* ---------- pending approval + invite claim ---------- */
+function renderPending(){
+  app().innerHTML=appHeader('')+`<main><div class="panel"><h2 class="serif">Access pending approval</h2>
+    <p class="muted">Your request has been sent to a director. You'll get access as soon as it's approved.</p>
+    ${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}
+    <div style="display:flex;gap:8px"><button class="btn ghost" onclick="UP.refresh()">Check again</button><button class="btn link" onclick="UP.signOut()">Sign out</button></div></div></main>`;
+}
+window.UP.refresh=()=>afterAuth();
+window.UP.requestAccess=async()=>{
+  const {data,error}=await sb.rpc('claim_invitation');
+  if(error)return flash('err',error.message);
+  if(data==='pending'){ flash('ok','Request sent — awaiting approval.'); await afterAuth(); }
+  else if(data==='no-invite'){ flash('err','No invitation found for your email. Ask the manager to invite you with this exact email.'); }
+  else flash('err','Could not request access.');
+};
+
+/* ---------- Team & Access (director/manager) ---------- */
+async function tabTeam(m,banner){
+  const [invs,members,owners,tenants,suppliers]=await Promise.all([list('invitations'),list('profiles','*','created_at'),list('owners'),list('tenants'),list('suppliers')]);
+  const pending=invs.filter(i=>i.status==='pending');
+  const subjOpts=`<option value="">— none (internal role) —</option>`
+    +owners.map(o=>`<option value="owner:${o.id}">Owner · ${esc(o.name)}</option>`).join('')
+    +tenants.map(t=>`<option value="tenant:${t.id}">Tenant · ${esc(t.name)}</option>`).join('')
+    +suppliers.map(s=>`<option value="supplier:${s.id}">Supplier · ${esc(s.name)}</option>`).join('');
+  m.innerHTML=banner+`
+   <div class="panel"><h2 class="serif">Invite a person</h2>
+     <div class="frow"><div class="field"><label>Email</label><input id="tm-email" type="email"></div>
+       <div class="field"><label>Role</label><select id="tm-role">${ALL_ROLES.map(r=>`<option value="${r}">${r.replace(/_/g,' ')}</option>`).join('')}</select></div></div>
+     <div class="field"><label>Link to record (owner / tenant / supplier only)</label><select id="tm-subject">${subjOpts}</select></div>
+     <button class="btn" onclick="UP.sendInvite()">Send invitation</button>
+     <p class="muted" style="font-size:12px;margin-top:6px">They register with this email, tap “I was invited — request access”, then appear below for you to approve.</p></div>
+   <div class="panel"><h2 class="serif">Pending approvals (${pending.length})</h2>
+     <table><thead><tr><th>Email</th><th>Role</th><th></th></tr></thead><tbody>
+     ${pending.map(i=>`<tr><td>${esc(i.email)}</td><td>${esc((i.role||'').replace(/_/g,' '))}</td><td><button class="btn mini" onclick="UP.approveInv('${i.id}')">Approve</button> <button class="btn link" onclick="UP.revokeInv('${i.id}')">reject</button></td></tr>`).join('')||'<tr><td colspan=3 class="muted">No one waiting.</td></tr>'}
+     </tbody></table></div>
+   <div class="panel"><h2 class="serif">Team members</h2>
+     <table><thead><tr><th>Email</th><th>Role</th></tr></thead><tbody>
+     ${members.map(p=>`<tr><td>${esc(p.email||'')}</td><td>${esc((p.role||'').replace(/_/g,' '))}</td></tr>`).join('')||'<tr><td colspan=2 class="muted">—</td></tr>'}
+     </tbody></table></div>
+   <div class="panel"><h2 class="serif">All invitations (${invs.length})</h2>
+     <table><thead><tr><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
+     ${invs.map(i=>`<tr><td>${esc(i.email)}</td><td>${esc((i.role||'').replace(/_/g,' '))}</td><td>${esc(i.status)}</td><td>${i.status!=='revoked'?`<button class="btn link" onclick="UP.revokeInv('${i.id}')">revoke</button>`:''}</td></tr>`).join('')||'<tr><td colspan=4 class="muted">None yet.</td></tr>'}
+     </tbody></table></div>`;
+}
+window.UP.sendInvite=async()=>{
+  const email=document.getElementById('tm-email').value.trim().toLowerCase(); if(!email)return flash('err','Enter an email.');
+  const role=document.getElementById('tm-role').value;
+  const subj=document.getElementById('tm-subject').value; let subject_type=null,subject_id=null;
+  if(subj){ const parts=subj.split(':'); subject_type=parts[0]; subject_id=parts[1]; }
+  const ok=await insertRow('invitations',{org_id:profile.org_id,email,role,subject_type,subject_id,status:'invited',invited_by:session.user.id});
+  if(ok){ flash('ok','Invitation created for '+email+'.'); renderTab(); }
+};
+window.UP.approveInv=async(id)=>{ const {data,error}=await sb.rpc('approve_invitation',{p_inv:id}); if(error)return flash('err',error.message); if(data){flash('ok','Approved.');renderTab();} else flash('err','Could not approve — has the person registered and requested access yet?'); };
+window.UP.revokeInv=async(id)=>{ if(!confirm('Revoke / reject this access?'))return; const {error}=await sb.rpc('revoke_invitation',{p_inv:id}); if(error)return flash('err',error.message); flash('ok','Done.'); renderTab(); };
+
+/* ---------- MFA (staff) ---------- */
+async function gateMfa(){
+  try{
+    const { data: aal } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if(aal && aal.currentLevel==='aal1' && aal.nextLevel==='aal2'){ renderMfaChallenge(); return true; }
+    const { data: fl } = await sb.auth.mfa.listFactors();
+    const verified = fl && fl.totp && fl.totp.length>0;
+    if(!verified){ await renderMfaEnroll(); return true; }
+  }catch(e){ /* MFA API unavailable — don't lock staff out */ }
+  return false;
+}
+async function renderMfaEnroll(){
+  app().innerHTML=appHeader('')+`<main><div class="panel"><h2 class="serif">Set up two‑factor authentication</h2>
+    <p class="muted">Staff accounts require MFA. Scan the QR code with Google Authenticator or Authy, then enter the 6‑digit code.</p>
+    <div id="mfa-box"><p class="muted">Preparing…</p></div>
+    <p class="muted" style="margin-top:8px"><button class="btn link" onclick="UP.signOut()">Sign out</button></p></div></main>`;
+  try{
+    const { data, error } = await sb.auth.mfa.enroll({ factorType:'totp' }); if(error) throw error;
+    document.getElementById('mfa-box').innerHTML=`<img src="${data.totp.qr_code}" alt="QR" style="width:180px;height:180px;background:#fff;border-radius:8px;padding:6px"/>
+      <p class="muted" style="font-size:12px">Manual key: <b>${esc(data.totp.secret)}</b></p>
+      <div class="field" style="max-width:220px"><label>6‑digit code</label><input id="mfa-code" inputmode="numeric" autocomplete="one-time-code"></div>
+      <button class="btn" onclick="UP.mfaEnrollVerify('${data.id}')">Verify &amp; continue</button>`;
+  }catch(e){ document.getElementById('mfa-box').innerHTML='<div class="msg err">Could not start MFA: '+esc(e.message||e)+'</div>'; }
+}
+window.UP.mfaEnrollVerify=async(factorId)=>{
+  const code=((document.getElementById('mfa-code')||{}).value||'').trim();
+  try{
+    const { data: chal, error: ce } = await sb.auth.mfa.challenge({ factorId }); if(ce) throw ce;
+    const { error: ve } = await sb.auth.mfa.verify({ factorId, challengeId: chal.id, code }); if(ve) throw ve;
+    flash('ok','MFA enabled.'); await afterAuth();
+  }catch(e){ flash('err','Code invalid — try again.'); }
+};
+async function renderMfaChallenge(){
+  app().innerHTML=appHeader('')+`<main><div class="panel"><h2 class="serif">Two‑factor code</h2>
+    <p class="muted">Enter the 6‑digit code from your authenticator app.</p>
+    ${msg?`<div class="msg ${msg.type}">${esc(msg.text)}</div>`:''}
+    <div class="field" style="max-width:220px"><label>6‑digit code</label><input id="mfa-code2" inputmode="numeric" autocomplete="one-time-code"></div>
+    <button class="btn" onclick="UP.mfaChallenge()">Verify</button>
+    <p class="muted" style="margin-top:8px"><button class="btn link" onclick="UP.signOut()">Sign out</button></p></div></main>`;
+}
+window.UP.mfaChallenge=async()=>{
+  try{
+    const { data: fl } = await sb.auth.mfa.listFactors();
+    const factor=(fl.totp&&fl.totp[0]); if(!factor) throw new Error('no factor');
+    const { data: chal, error: ce } = await sb.auth.mfa.challenge({ factorId: factor.id }); if(ce) throw ce;
+    const code=((document.getElementById('mfa-code2')||{}).value||'').trim();
+    const { error: ve } = await sb.auth.mfa.verify({ factorId: factor.id, challengeId: chal.id, code }); if(ve) throw ve;
+    await afterAuth();
+  }catch(e){ flash('err','Code invalid — try again.'); }
 };
 
 /* ---------- small utils ---------- */
