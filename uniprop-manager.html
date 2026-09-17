@@ -53,6 +53,7 @@ const CFG_KEY='uniprop:cfg';
 let sb=null, session=null, profile=null, orgName='', tab='dashboard', msg=null, draftItems=[{description:'',qty:1,unit_price:0}];
 let myOwner=null, ownerTab='properties';
 let myTenant=null, tenantTab='lease';
+let reportCache=null;
 const app=()=>document.getElementById('app');
 const cfg=()=>{try{return JSON.parse(localStorage.getItem(CFG_KEY)||'null');}catch(e){return null;}};
 const money=n=>n==null?'—':'R'+Number(n).toLocaleString('en-ZA');
@@ -165,14 +166,14 @@ function render(){
 }
 function tabsForRole(){
   const r=profile.role;
-  const all=['dashboard','owners','properties','units','tenants','leases','invoices','payments','expenses','statements','suppliers','maintenance','documents','opportunities','team'];
+  const all=['dashboard','owners','properties','units','tenants','leases','invoices','payments','expenses','statements','accounting','suppliers','maintenance','documents','opportunities','team'];
   let base;
-  if(r==='director'||r==='admin') base=all;
+  if(r==='director'||r==='admin') base=all.concat('checklist');
   else if(r==='property_manager'||r==='manager') base=all.filter(t=>t!=='team');
   else if(r==='maintenance_manager') base=['dashboard','properties','units','suppliers','maintenance','documents'];
   else if(r==='maintenance_staff') base=['dashboard','maintenance','suppliers'];
-  else if(r==='finance_debtors') base=['dashboard','tenants','leases','invoices','payments','statements','documents'];
-  else if(r==='finance_creditors') base=['dashboard','expenses','suppliers','payments','statements','documents'];
+  else if(r==='finance_debtors') base=['dashboard','tenants','leases','invoices','payments','statements','accounting','documents'];
+  else if(r==='finance_creditors') base=['dashboard','expenses','suppliers','payments','statements','accounting','documents'];
   else if(r==='sales') base=['dashboard','opportunities','owners','properties'];
   else base=['dashboard'];
   return base.concat('help');
@@ -237,7 +238,9 @@ async function renderTab(){
   if(tab==='maintenance') return tabMaintenance(m,banner);
   if(tab==='documents') return tabDocuments(m,banner);
   if(tab==='opportunities') return tabOpportunities(m,banner);
+  if(tab==='accounting') return tabAccounting(m,banner);
   if(tab==='team') return tabTeam(m,banner);
+  if(tab==='checklist') return tabChecklist(m,banner);
   if(tab==='help') return tabHelp(m,banner);
 }
 
@@ -996,6 +999,109 @@ window.UP.mfaChallenge=async()=>{
   }catch(e){ flash('err','Code invalid — try again.'); }
 };
 
+/* ---------- accounting: ledger & trial balance ---------- */
+async function tabLedger(m,banner){
+  const [accs,lines,entries]=await Promise.all([list('accounts','*','code'),list('journal_lines','*','id'),list('journal_entries','*','entry_date')]);
+  const amap=Object.fromEntries(accs.map(a=>[a.id,a]));
+  const tb={}; lines.forEach(l=>{(tb[l.account_id]=tb[l.account_id]||{dr:0,cr:0});tb[l.account_id].dr+=Number(l.debit||0);tb[l.account_id].cr+=Number(l.credit||0);});
+  let totDr=0,totCr=0;
+  const tbRows=accs.filter(a=>tb[a.id]).map(a=>{const t=tb[a.id];totDr+=t.dr;totCr+=t.cr;return `<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td><td style="text-align:right">${money(t.dr)}</td><td style="text-align:right">${money(t.cr)}</td></tr>`;}).join('');
+  const byEntry={}; lines.forEach(l=>{(byEntry[l.entry_id]=byEntry[l.entry_id]||[]).push(l);});
+  const entryRows=entries.slice(0,50).map(e=>{const ls=(byEntry[e.id]||[]).map(l=>`${esc((amap[l.account_id]||{}).code||'')} ${Number(l.debit)>0?'Dr '+money(l.debit):'Cr '+money(l.credit)}`).join(' · ');return `<tr><td>${e.entry_date||''}</td><td>${esc(e.description||'')}</td><td>${esc(e.source_type||'')}</td><td style="font-size:12px">${ls}</td></tr>`;}).join('');
+  const balanced=Math.abs(totDr-totCr)<0.01;
+  m.innerHTML=banner+`
+   <div class="panel"><h2 class="serif">Trial balance</h2>
+     <table><thead><tr><th>Code</th><th>Account</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th></tr></thead><tbody>
+     ${tbRows||'<tr><td colspan=4 class="muted">No entries yet — record a payment or expense and it posts here automatically.</td></tr>'}
+     </tbody><tfoot>
+     <tr><td></td><td><b>Total</b></td><td style="text-align:right"><b>${money(totDr)}</b></td><td style="text-align:right"><b>${money(totCr)}</b></td></tr>
+     <tr><td></td><td style="color:${balanced?'#134c38':'#a94b3d'}">${balanced?'In balance ✓':'⚠ Out of balance'}</td><td colspan=2></td></tr>
+     </tfoot></table></div>
+   <div class="panel"><h2 class="serif">General ledger (recent)</h2>
+     <p class="muted" style="font-size:12px">Payments and expenses post here automatically via double‑entry. Chart of accounts &amp; mappings can be tuned with your accountant. (Invoice accrual, bank reconciliation and financial reports are the next steps.)</p>
+     <table><thead><tr><th>Date</th><th>Description</th><th>Source</th><th>Entry</th></tr></thead><tbody>
+     ${entryRows||'<tr><td colspan=4 class="muted">No entries yet.</td></tr>'}
+     </tbody></table></div>`;
+}
+
+/* ---------- accounting section (IFRS-format statements) ---------- */
+let accTab='trial';
+function acctBalances(accs,lines){const b={};accs.forEach(a=>b[a.id]={a,dr:0,cr:0});lines.forEach(l=>{if(b[l.account_id]){b[l.account_id].dr+=Number(l.debit||0);b[l.account_id].cr+=Number(l.credit||0);}});return b;}
+function acctNet(a,dr,cr){return (a.type==='asset'||a.type==='expense')?(dr-cr):(cr-dr);}
+function accProfit(accs,bal){let inc=0,exp=0;accs.forEach(a=>{const t=bal[a.id]||{dr:0,cr:0};if(a.type==='income')inc+=acctNet(a,t.dr,t.cr);if(a.type==='expense')exp+=acctNet(a,t.dr,t.cr);});return inc-exp;}
+async function tabAccounting(m,banner){
+  const [accs,lines,entries]=await Promise.all([list('accounts','*','code'),list('journal_lines','*','id'),list('journal_entries','*','entry_date')]);
+  const bal=acctBalances(accs,lines);
+  const sub=(k,l)=>`<button class="tab ${accTab===k?'active':''}" onclick="UP.acc('${k}')">${l}</button>`;
+  let body = accTab==='pnl'?reportPnl(accs,bal) : accTab==='bs'?reportBS(accs,bal) : accTab==='gl'?reportGL(accs,entries,lines) : reportTrial(accs,bal);
+  m.innerHTML=banner+`<div class="panel" style="padding-bottom:8px"><h2 class="serif">Accounting</h2>
+    <p class="muted" style="font-size:12px">Financial statements from your general ledger, in IFRS presentation.</p>
+    <div style="display:flex;gap:2px;overflow-x:auto;border-bottom:1px solid var(--line);margin-top:6px">${sub('trial','Trial balance')}${sub('pnl','Income statement')}${sub('bs','Balance sheet')}${sub('gl','General ledger')}</div></div>
+    ${body}
+    <div class="panel"><p class="muted" style="font-size:12px"><b>Honest note.</b> These follow IFRS presentation. Full IFRS‑for‑SMEs annual financial statements — with notes, accounting policies and disclosures — and any tax return need a registered accountant / tax practitioner and specialist AFS software (e.g. CaseWare, Draftworx). This gives them clean, correct figures to work from.</p></div>`;
+}
+window.UP.acc=(k)=>{accTab=k;renderTab();};
+function reportTrial(accs,bal){
+  let totDr=0,totCr=0;
+  const rows=accs.filter(a=>bal[a.id]&&(bal[a.id].dr||bal[a.id].cr)).map(a=>{const t=bal[a.id];totDr+=t.dr;totCr+=t.cr;return `<tr><td>${esc(a.code)}</td><td>${esc(a.name)}</td><td style="text-align:right">${money(t.dr)}</td><td style="text-align:right">${money(t.cr)}</td></tr>`;}).join('');
+  const bl=Math.abs(totDr-totCr)<0.01;
+  return `<div class="panel"><div style="display:flex;justify-content:space-between;align-items:center"><h3 class="serif">Trial balance</h3><button class="btn ghost mini" onclick="UP.accExport()">Export CSV</button></div>
+    <table><thead><tr><th>Code</th><th>Account</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th></tr></thead><tbody>
+    ${rows||'<tr><td colspan=4 class="muted">No entries yet — record a payment or expense.</td></tr>'}
+    </tbody><tfoot><tr><td></td><td><b>Total</b></td><td style="text-align:right"><b>${money(totDr)}</b></td><td style="text-align:right"><b>${money(totCr)}</b></td></tr>
+    <tr><td></td><td style="color:${bl?'#134c38':'#a94b3d'}">${bl?'In balance ✓':'⚠ Out of balance'}</td><td colspan=2></td></tr></tfoot></table></div>`;
+}
+function reportPnl(accs,bal){
+  const row=(a)=>{const t=bal[a.id]||{dr:0,cr:0};const v=acctNet(a,t.dr,t.cr);return v?`<tr><td style="padding-left:14px">${esc(a.name)}</td><td style="text-align:right">${money(v)}</td></tr>`:'';};
+  const inc=accs.filter(a=>a.type==='income'), exp=accs.filter(a=>a.type==='expense');
+  const ti=inc.reduce((s,a)=>{const t=bal[a.id]||{dr:0,cr:0};return s+acctNet(a,t.dr,t.cr);},0);
+  const te=exp.reduce((s,a)=>{const t=bal[a.id]||{dr:0,cr:0};return s+acctNet(a,t.dr,t.cr);},0);
+  return `<div class="panel"><h3 class="serif">Statement of Profit or Loss</h3>
+    <table><tbody>
+    <tr><td style="font-weight:600">Revenue</td><td></td></tr>${inc.map(row).join('')}
+    <tr><td style="font-weight:600">Total revenue</td><td style="text-align:right;font-weight:600">${money(ti)}</td></tr>
+    <tr><td style="font-weight:600;padding-top:10px">Operating expenses</td><td></td></tr>${exp.map(row).join('')}
+    <tr><td style="font-weight:600">Total expenses</td><td style="text-align:right;font-weight:600">(${money(te)})</td></tr>
+    <tr><td style="font-weight:700;border-top:2px solid var(--ink)">Profit for the period</td><td style="text-align:right;font-weight:700;border-top:2px solid var(--ink)">${money(ti-te)}</td></tr>
+    </tbody></table></div>`;
+}
+function reportBS(accs,bal){
+  const row=(a)=>{const t=bal[a.id]||{dr:0,cr:0};const v=acctNet(a,t.dr,t.cr);return v?`<tr><td style="padding-left:14px">${esc(a.name)}</td><td style="text-align:right">${money(v)}</td></tr>`:'';};
+  const assets=accs.filter(a=>a.type==='asset'), liab=accs.filter(a=>a.type==='liability'), eq=accs.filter(a=>a.type==='equity');
+  const sum=arr=>arr.reduce((s,a)=>{const t=bal[a.id]||{dr:0,cr:0};return s+acctNet(a,t.dr,t.cr);},0);
+  const ta=sum(assets), tl=sum(liab), teq=sum(eq), profit=accProfit(accs,bal), eqTotal=teq+profit;
+  const check=Math.abs(ta-(tl+eqTotal))<0.01;
+  return `<div class="panel"><h3 class="serif">Statement of Financial Position</h3>
+    <table><tbody>
+    <tr><td style="font-weight:600">Assets</td><td></td></tr>${assets.map(row).join('')}
+    <tr><td style="font-weight:700;border-top:1px solid var(--line)">Total assets</td><td style="text-align:right;font-weight:700;border-top:1px solid var(--line)">${money(ta)}</td></tr>
+    <tr><td style="font-weight:600;padding-top:10px">Equity</td><td></td></tr>${eq.map(row).join('')}
+    <tr><td style="padding-left:14px">Retained earnings (current period)</td><td style="text-align:right">${money(profit)}</td></tr>
+    <tr><td style="font-weight:600">Total equity</td><td style="text-align:right;font-weight:600">${money(eqTotal)}</td></tr>
+    <tr><td style="font-weight:600;padding-top:10px">Liabilities</td><td></td></tr>${liab.map(row).join('')}
+    <tr><td style="font-weight:600">Total liabilities</td><td style="text-align:right;font-weight:600">${money(tl)}</td></tr>
+    <tr><td style="font-weight:700;border-top:2px solid var(--ink)">Total equity and liabilities</td><td style="text-align:right;font-weight:700;border-top:2px solid var(--ink)">${money(eqTotal+tl)}</td></tr>
+    <tr><td style="color:${check?'#134c38':'#a94b3d'}">${check?'Balances ✓':'⚠ Does not balance'}</td><td></td></tr>
+    </tbody></table></div>`;
+}
+function reportGL(accs,entries,lines){
+  const amap=Object.fromEntries(accs.map(a=>[a.id,a]));
+  const byEntry={}; lines.forEach(l=>{(byEntry[l.entry_id]=byEntry[l.entry_id]||[]).push(l);});
+  const rows=entries.slice(0,60).map(e=>{const ls=(byEntry[e.id]||[]).map(l=>`${esc((amap[l.account_id]||{}).code||'')} ${Number(l.debit)>0?'Dr '+money(l.debit):'Cr '+money(l.credit)}`).join(' · ');return `<tr><td>${e.entry_date||''}</td><td>${esc(e.description||'')}</td><td>${esc(e.source_type||'')}</td><td style="font-size:12px">${ls}</td></tr>`;}).join('');
+  return `<div class="panel"><h3 class="serif">General ledger (recent)</h3>
+    <p class="muted" style="font-size:12px">Payments and expenses post here automatically via double‑entry.</p>
+    <table><thead><tr><th>Date</th><th>Description</th><th>Source</th><th>Entry</th></tr></thead><tbody>${rows||'<tr><td colspan=4 class="muted">No entries yet.</td></tr>'}</tbody></table></div>`;
+}
+window.UP.accExport=async()=>{
+  const [accs,lines]=await Promise.all([list('accounts','*','code'),list('journal_lines','*','id')]);
+  const bal=acctBalances(accs,lines);
+  const q=v=>{v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const rows=[['Code','Account','Type','Debit','Credit']];
+  accs.forEach(a=>{const t=bal[a.id];if(t&&(t.dr||t.cr))rows.push([a.code,a.name,a.type,Math.round(t.dr*100)/100,Math.round(t.cr*100)/100]);});
+  const csv='\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n');
+  const b=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(b);const a=document.createElement('a');a.href=url;a.download='uniprop-trial-balance.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),500);
+};
+
 /* ---------- opportunity web search + help ---------- */
 function stratQuery(s){
   const n=(s.name||'').toLowerCase();
@@ -1025,6 +1131,59 @@ async function tabHelp(m,banner){
    ${g('Finding opportunities',['Opportunities tab → open a strategy card for how‑to‑buy steps and search links.','Use “Search the web (last 3 months)” or a strategy’s “Recent web results” to open fresh listings in a new tab.','Save promising deals to your watchlist and track their status.'])}
    <div class="panel"><p class="muted" style="font-size:12px">Want real screenshots beside each step? Capture them from your live app and send them to me to wire in, or drop them into the repo — I’ll reference them here.</p></div>`;
 }
+
+/* ---------- directors' checklist / roadmap ---------- */
+async function tabChecklist(m,banner){
+  const [tasks,files]=await Promise.all([list('tasks','*','created_at'),list('task_files','*','created_at')]);
+  const byTask={}; files.forEach(f=>{(byTask[f.task_id]=byTask[f.task_id]||[]).push(f);});
+  const order={high:0,normal:1,low:2};
+  const cats=[...new Set(tasks.map(t=>t.category||'General'))];
+  const doneN=tasks.filter(t=>t.status==='done').length;
+  const blocks=cats.map(cat=>{
+    const ts=tasks.filter(t=>(t.category||'General')===cat).sort((a,b)=>(order[a.priority]??1)-(order[b.priority]??1));
+    const d=ts.filter(t=>t.status==='done').length;
+    return `<div class="panel"><h3 class="serif">${esc(cat)} <span class="muted" style="font-size:12px">(${d}/${ts.length})</span></h3>${ts.map(t=>taskRow(t,byTask[t.id]||[])).join('')}</div>`;
+  }).join('');
+  m.innerHTML=banner+`<div class="panel"><h2 class="serif">Checklist — directors only</h2>
+    <p class="muted" style="font-size:12px">Everything still to do, with descriptions. Tick items off and attach documents. Visible only to directors (${doneN}/${tasks.length} complete).</p>
+    <div class="frow"><div class="field"><label>New task</label><input id="ck-title" placeholder="Task title"></div>
+      <div class="field"><label>Category</label><input id="ck-cat" placeholder="e.g. Compliance"></div></div>
+    <div class="field"><label>Description</label><input id="ck-desc"></div>
+    <button class="btn mini" onclick="UP.addTask()">Add task</button></div>
+    ${blocks||'<div class="panel"><p class="muted">No tasks yet — add one above, or run migration 11 to load the roadmap.</p></div>'}`;
+}
+function taskRow(t,files){
+  const done=t.status==='done';
+  return `<div style="border-top:1px solid var(--line);padding:11px 0">
+    <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+      <input type="checkbox" ${done?'checked':''} onchange="UP.toggleTask('${t.id}',this.checked)" style="width:auto;margin-top:3px">
+      <span style="flex:1"><b style="${done?'text-decoration:line-through;color:var(--slate)':''}">${esc(t.title)}</b>
+        ${t.priority==='high'?' <span class="pill" style="background:#f7e9e6;color:#a94b3d">high</span>':t.priority==='low'?' <span class="pill">low</span>':''}
+        ${t.description?`<div class="muted" style="font-size:12.5px;margin-top:3px">${esc(t.description)}</div>`:''}
+        ${files.length?`<div style="font-size:12px;margin-top:5px">${files.map(f=>`📎 <a href="#" onclick="UP.taskFile('${esc(f.storage_path)}');return false">${esc(f.filename||'file')}</a>`).join(' &nbsp; ')}</div>`:''}
+      </span>
+    </label>
+    <div style="display:flex;gap:10px;margin-left:28px;margin-top:5px">
+      <label class="btn ghost mini" style="display:inline-block;cursor:pointer">Attach file<input type="file" style="display:none" onchange="UP.uploadTaskFile('${t.id}',this)"></label>
+      <button class="btn link" onclick="UP.delTask('${t.id}')">delete</button>
+    </div>
+  </div>`;
+}
+window.UP.addTask=async()=>{
+  const title=document.getElementById('ck-title').value.trim(); if(!title)return flash('err','Enter a title.');
+  const ok=await insertRow('tasks',{org_id:profile.org_id,title,category:document.getElementById('ck-cat').value.trim()||'General',description:document.getElementById('ck-desc').value.trim(),status:'todo',priority:'normal',created_by:session.user.id});
+  if(ok) renderTab();
+};
+window.UP.toggleTask=async(id,ch)=>{ await updateRow('tasks',id,{status:ch?'done':'todo',done_at:ch?new Date().toISOString():null}); renderTab(); };
+window.UP.delTask=async(id)=>{ if(!confirm('Delete this task?'))return; const {error}=await sb.from('tasks').delete().eq('id',id); if(error)return flash('err',error.message); renderTab(); };
+window.UP.uploadTaskFile=async(taskId,input)=>{
+  const file=input.files&&input.files[0]; if(!file)return;
+  const safe=file.name.replace(/[^\w.\-]+/g,'_'); const path=`${profile.org_id}/tasks/${taskId}/${Date.now()}_${safe}`;
+  const {error:ue}=await sb.storage.from('docs').upload(path,file); if(ue)return flash('err','Upload: '+ue.message);
+  const ok=await insertRow('task_files',{org_id:profile.org_id,task_id:taskId,storage_path:path,filename:file.name,uploaded_by:session.user.id});
+  if(ok){ flash('ok','Attached.'); renderTab(); }
+};
+window.UP.taskFile=async(path)=>{ const {data,error}=await sb.storage.from('docs').createSignedUrl(path,120); if(error)return flash('err',error.message); window.open(data.signedUrl,'_blank'); };
 
 /* ---------- small utils ---------- */
 function num(id){const v=document.getElementById(id); return v&&v.value!==''?parseFloat(v.value):null;}
